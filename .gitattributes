@@ -1,0 +1,26 @@
+# Ensure shell scripts and configuration files in assets/ use LF line endings
+assets/** text eol=lf
+
+# Ensure the prepare-deployment script uses LF line endings
+prepare-deployment.sh text eol=lf
+
+# Default behavior for other files
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted to native line endings on checkout
+*.md text
+*.bicep text
+*.bicepparam text
+*.ps1 text
+
+# Declare files that will always have CRLF line endings on checkout (Windows scripts)
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Denote all files that are truly binary and should not be modified
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
