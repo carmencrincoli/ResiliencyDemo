@@ -33,8 +33,6 @@ The solution automatically provisions and configures:
 
 ## 📋 Prerequisites
 
-## 📋 Prerequisites
-
 ### Azure Requirements
 - **Azure Subscription** with appropriate permissions
 - **Azure Local (Stack HCI)** cluster deployed and configured
