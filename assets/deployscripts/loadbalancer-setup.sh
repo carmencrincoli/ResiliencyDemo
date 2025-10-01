@@ -50,21 +50,7 @@ handle_error() {
     exit 1
 }
 
-# Wait for dpkg lock to be released
-wait_for_dpkg_lock() {
-    local timeout=900  # 5 minutes timeout
-    local elapsed=0
-    
-    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
-        if [ $elapsed -ge $timeout ]; then
-            handle_error "Timeout waiting for package manager lock after $timeout seconds"
-        fi
-        log "Waiting for package manager lock to be released... ($elapsed/$timeout seconds)"
-        sleep 30
-        elapsed=$((elapsed + 30))
-    done
-    log "Package manager lock is now available"
-}
+
 
 # Cleanup function
 cleanup() {
@@ -111,16 +97,13 @@ $nrconf{restart} = 'a';
 EOF
 
 # Wait for any existing package operations to complete
-wait_for_dpkg_lock
-apt-get update || handle_error "Failed to update package lists"
+apt-get -o DPkg::Lock::Timeout=600 update || handle_error "Failed to update package lists"
 
-wait_for_dpkg_lock
-apt-get upgrade -y || handle_error "Failed to upgrade packages"
+apt-get -o DPkg::Lock::Timeout=600 upgrade -y || handle_error "Failed to upgrade packages"
 
 # Install required packages
 log "Installing required packages..."
-wait_for_dpkg_lock
-apt-get install -y \
+apt-get -o DPkg::Lock::Timeout=600 install -y \
     nginx \
     openssl \
     curl \

@@ -114,7 +114,7 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
   }
 }
 
-// Deploy PostgreSQL Replica VM (depends on primary)
+// Deploy PostgreSQL Replica VM (no dependency - will retry connection to primary)
 module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
   name: 'deploy-${vmNames.dbReplica}'
   params: {
@@ -131,12 +131,9 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
   }
-  dependsOn: [
-    dbPrimaryVm
-  ]
 }
 
-// Deploy Web Application VMs (depends only on primary database for faster parallel deployment)
+// Deploy Web Application VMs (no dependency - can handle database connectivity gracefully)
 module webapp1Vm 'modules/webapp-vm.bicep' = {
   name: 'deploy-${vmNames.webapp1}'
   params: {
@@ -154,9 +151,6 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
   }
-  dependsOn: [
-    dbPrimaryVm
-  ]
 }
 
 module webapp2Vm 'modules/webapp-vm.bicep' = {
@@ -176,12 +170,9 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
   }
-  dependsOn: [
-    dbPrimaryVm
-  ]
 }
 
-// Deploy Load Balancer VM (depends only on primary database for maximum parallelism)
+// Deploy Load Balancer VM (no dependency - can handle backend connectivity gracefully)
 module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
   name: 'deploy-${vmNames.loadBalancer}'
   params: {
@@ -198,9 +189,6 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     processors: vmResources.loadBalancer.processors
     memoryMB: vmResources.loadBalancer.memoryMB
   }
-  dependsOn: [
-    dbPrimaryVm
-  ]
 }
 
 // Outputs for verification and connection information

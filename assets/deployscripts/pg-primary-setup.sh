@@ -51,21 +51,7 @@ handle_error() {
     exit 1
 }
 
-# Wait for dpkg lock to be released
-wait_for_dpkg_lock() {
-    local timeout=900  # 5 minutes timeout
-    local elapsed=0
-    
-    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
-        if [ $elapsed -ge $timeout ]; then
-            handle_error "Timeout waiting for package manager lock after $timeout seconds"
-        fi
-        log "Waiting for package manager lock to be released... ($elapsed/$timeout seconds)"
-        sleep 30
-        elapsed=$((elapsed + 30))
-    done
-    log "Package manager lock is now available"
-}
+
 
 # Cleanup function
 cleanup() {
@@ -103,16 +89,13 @@ $nrconf{restart} = 'a';
 EOF
 
 # Wait for any existing package operations to complete
-wait_for_dpkg_lock
-apt-get update || handle_error "Failed to update package lists"
+apt-get -o DPkg::Lock::Timeout=600 update || handle_error "Failed to update package lists"
 
-wait_for_dpkg_lock
-apt-get upgrade -y || handle_error "Failed to upgrade packages"
+apt-get -o DPkg::Lock::Timeout=600 upgrade -y || handle_error "Failed to upgrade packages"
 
 # Install PostgreSQL
 log "Installing PostgreSQL $POSTGRES_VERSION..."
-wait_for_dpkg_lock
-apt-get install -y wget ca-certificates gnupg || handle_error "Failed to install prerequisites"
+apt-get -o DPkg::Lock::Timeout=600 install -y wget ca-certificates gnupg || handle_error "Failed to install prerequisites"
 
 # Add PostgreSQL official APT repository
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg || handle_error "Failed to add PostgreSQL GPG key"
@@ -121,15 +104,12 @@ echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.post
 # Configure debconf for non-interactive installation (only set selections that exist)
 echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
-wait_for_dpkg_lock
-apt-get update || handle_error "Failed to update package lists after adding PostgreSQL repo"
+apt-get -o DPkg::Lock::Timeout=600 update || handle_error "Failed to update package lists after adding PostgreSQL repo"
 
-wait_for_dpkg_lock
-apt-get install -y postgresql-$POSTGRES_VERSION postgresql-contrib-$POSTGRES_VERSION postgresql-client-$POSTGRES_VERSION postgresql-server-dev-$POSTGRES_VERSION || handle_error "Failed to install PostgreSQL"
+apt-get -o DPkg::Lock::Timeout=600 install -y postgresql-$POSTGRES_VERSION postgresql-contrib-$POSTGRES_VERSION postgresql-client-$POSTGRES_VERSION postgresql-server-dev-$POSTGRES_VERSION || handle_error "Failed to install PostgreSQL"
 
 # Install additional packages that might be needed
-wait_for_dpkg_lock
-apt-get install -y postgresql-plpython3-$POSTGRES_VERSION postgresql-$POSTGRES_VERSION-postgis-3 2>/dev/null || log "Optional PostgreSQL extensions not available"
+apt-get -o DPkg::Lock::Timeout=600 install -y postgresql-plpython3-$POSTGRES_VERSION postgresql-$POSTGRES_VERSION-postgis-3 2>/dev/null || log "Optional PostgreSQL extensions not available"
 
 # Create application directories
 log "Creating application directories..."

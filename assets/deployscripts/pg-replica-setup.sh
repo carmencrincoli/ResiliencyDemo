@@ -49,21 +49,7 @@ handle_error() {
     exit 1
 }
 
-# Wait for dpkg lock to be released
-wait_for_dpkg_lock() {
-    local timeout=900  # 5 minutes timeout
-    local elapsed=0
-    
-    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
-        if [ $elapsed -ge $timeout ]; then
-            handle_error "Timeout waiting for package manager lock after $timeout seconds"
-        fi
-        log "Waiting for package manager lock to be released... ($elapsed/$timeout seconds)"
-        sleep 30
-        elapsed=$((elapsed + 30))
-    done
-    log "Package manager lock is now available"
-}
+
 
 # Cleanup function
 cleanup() {
@@ -105,16 +91,13 @@ $nrconf{restart} = 'a';
 EOF
 
 # Wait for any existing package operations to complete
-wait_for_dpkg_lock
-apt-get update || handle_error "Failed to update package lists"
+apt-get -o DPkg::Lock::Timeout=600 update || handle_error "Failed to update package lists"
 
-wait_for_dpkg_lock
-apt-get upgrade -y || handle_error "Failed to upgrade packages"
+apt-get -o DPkg::Lock::Timeout=600 upgrade -y || handle_error "Failed to upgrade packages"
 
 # Install PostgreSQL
 log "Installing PostgreSQL $POSTGRES_VERSION..."
-wait_for_dpkg_lock
-apt-get install -y wget ca-certificates gnupg bc || handle_error "Failed to install prerequisites"
+apt-get -o DPkg::Lock::Timeout=600 install -y wget ca-certificates gnupg bc || handle_error "Failed to install prerequisites"
 
 # Add PostgreSQL official APT repository
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg || handle_error "Failed to add PostgreSQL GPG key"
@@ -123,15 +106,12 @@ echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.post
 # Configure debconf for non-interactive installation (only set selections that exist)
 echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
-wait_for_dpkg_lock
-apt-get update || handle_error "Failed to update package lists after adding PostgreSQL repo"
+apt-get -o DPkg::Lock::Timeout=600 update || handle_error "Failed to update package lists after adding PostgreSQL repo"
 
-wait_for_dpkg_lock
-apt-get install -y postgresql-$POSTGRES_VERSION postgresql-contrib-$POSTGRES_VERSION postgresql-client-$POSTGRES_VERSION postgresql-server-dev-$POSTGRES_VERSION || handle_error "Failed to install PostgreSQL"
+apt-get -o DPkg::Lock::Timeout=600 install -y postgresql-$POSTGRES_VERSION postgresql-contrib-$POSTGRES_VERSION postgresql-client-$POSTGRES_VERSION postgresql-server-dev-$POSTGRES_VERSION || handle_error "Failed to install PostgreSQL"
 
 # Install additional packages that might be needed
-wait_for_dpkg_lock
-apt-get install -y postgresql-plpython3-$POSTGRES_VERSION postgresql-$POSTGRES_VERSION-postgis-3 2>/dev/null || log "Optional PostgreSQL extensions not available"
+apt-get -o DPkg::Lock::Timeout=600 install -y postgresql-plpython3-$POSTGRES_VERSION postgresql-$POSTGRES_VERSION-postgis-3 2>/dev/null || log "Optional PostgreSQL extensions not available"
 
 # Create application directories
 log "Creating application directories..."
@@ -196,11 +176,56 @@ echo "$PRIMARY_HOST:5432:*:$REPLICATION_USER:$REPLICATION_PASSWORD" > /var/lib/p
 chown postgres:postgres /var/lib/postgresql/.pgpass || handle_error "Failed to set .pgpass ownership"
 chmod 600 /var/lib/postgresql/.pgpass || handle_error "Failed to set .pgpass permissions"
 
-# Test connection to primary server
-log "Testing connection to primary server..."
-if ! pg_isready -h "$PRIMARY_HOST" -p 5432; then
-    handle_error "Cannot connect to primary server at $PRIMARY_HOST:5432"
-fi
+# Function to test if primary is fully ready for replication
+test_primary_ready() {
+    local host="$1"
+    
+    # Step 1: Basic connectivity
+    if ! pg_isready -h "$host" -p 5432 >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    # Step 2: Test replication user exists and can connect
+    if ! PGPASSWORD="$REPLICATION_PASSWORD" psql -h "$host" -p 5432 -U "$REPLICATION_USER" -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    # Step 3: Test replication user has proper privileges (check if user has REPLICATION role)
+    if ! PGPASSWORD="$REPLICATION_PASSWORD" psql -h "$host" -p 5432 -U "$REPLICATION_USER" -d postgres -c "SELECT rolreplication FROM pg_roles WHERE rolname = '$REPLICATION_USER';" -t | grep -q "t" >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    # Step 4: Verify ecommerce database exists (indicates schema is loaded)
+    if ! PGPASSWORD="$REPLICATION_PASSWORD" psql -h "$host" -p 5432 -U "$REPLICATION_USER" -d ecommerce -c "SELECT 1;" >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Test connection to primary server with retry logic
+log "Testing if primary server is fully ready for replication..."
+RETRY_TIMEOUT=1800  # 30 minutes in seconds
+RETRY_INTERVAL=60   # Retry every 60 seconds
+START_TIME=$(date +%s)
+
+while true; do
+    if test_primary_ready "$PRIMARY_HOST"; then
+        log "✓ Primary server is fully ready for replication at $PRIMARY_HOST:5432"
+        break
+    fi
+    
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+    
+    if [ $ELAPSED_TIME -ge $RETRY_TIMEOUT ]; then
+        handle_error "Timeout: Primary server at $PRIMARY_HOST:5432 not ready for replication after 30 minutes"
+    fi
+    
+    REMAINING_TIME=$((RETRY_TIMEOUT - ELAPSED_TIME))
+    log "⚠ Primary server not ready for replication. Retrying in ${RETRY_INTERVAL} seconds (${REMAINING_TIME}s remaining)..."
+    sleep $RETRY_INTERVAL
+done
 
 # Create base backup from primary
 log "Creating base backup from primary server..."

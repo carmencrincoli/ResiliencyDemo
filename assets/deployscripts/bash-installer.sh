@@ -4,15 +4,28 @@
 # Uses /bin/sh for maximum compatibility during initial bootstrap
 
 # Create log file first
-LOG_FILE="/var/log/deploy.log"
+LOG_FILE="/var/log/bashdeploy.log"
 mkdir -p /var/log
 
-# Basic logging
+# Basic logging function that writes to both console and log file
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [BASH-INSTALLER] $1"
+    MESSAGE="$(date '+%Y-%m-%d %H:%M:%S') [BASH-INSTALLER] $1"
+    echo "$MESSAGE"
+    echo "$MESSAGE" >> "$LOG_FILE"
 }
 
 log "Starting bash installation check..."
+
+# Disable automatic updates to prevent package lock conflicts during deployment
+log "Stopping and disabling unattended-upgrades to prevent lock conflicts..."
+systemctl stop unattended-upgrades 2>/dev/null || log "unattended-upgrades not running"
+systemctl disable unattended-upgrades 2>/dev/null || log "unattended-upgrades not installed"
+
+# Also stop apt-daily services that can cause similar issues
+systemctl stop apt-daily.timer 2>/dev/null || true
+systemctl stop apt-daily-upgrade.timer 2>/dev/null || true
+systemctl disable apt-daily.timer 2>/dev/null || true
+systemctl disable apt-daily-upgrade.timer 2>/dev/null || true
 
 # Check if bash is already installed and working
 BASH_INSTALLED=false
@@ -28,11 +41,11 @@ fi
 if [ "$BASH_INSTALLED" = false ]; then
     # Update package lists (non-blocking)
     log "Updating package lists..."
-    apt-get update > "$LOG_FILE" 2>&1 || log "Package update completed with warnings"
+    apt-get update || log "Package update completed with warnings"
 
     # Install bash (critical operation)
     log "Installing bash package..."
-    if apt-get install -y bash >> "$LOG_FILE" 2>&1; then
+    if apt-get install -y bash; then
         log "Bash package installed successfully"
     else
         log "Error: Failed to install bash package"
@@ -63,7 +76,7 @@ if [ "$BASH_INSTALLED" = false ]; then
     chmod +x /bin/bash
 
     # Test bash functionality (critical)
-    if /bin/bash -c 'echo "Bash test successful"' >> "$LOG_FILE" 2>&1; then
+    if /bin/bash -c 'echo "Bash test successful"'; then
         log "Bash functionality test passed"
     else
         log "Error: Bash functionality test failed"
@@ -96,12 +109,12 @@ fi
 
 # Update root shell (non-critical)
 if command -v usermod > /dev/null 2>&1; then
-    usermod -s /bin/bash root >> "$LOG_FILE" 2>&1 || log "Could not update root shell via usermod"
+    usermod -s /bin/bash root || log "Could not update root shell via usermod"
 fi
 
 # Update ubuntu shell if exists (non-critical)
 if id ubuntu > /dev/null 2>&1 && command -v usermod > /dev/null 2>&1; then
-    usermod -s /bin/bash ubuntu >> "$LOG_FILE" 2>&1 || log "Could not update ubuntu shell via usermod"
+    usermod -s /bin/bash ubuntu || log "Could not update ubuntu shell via usermod"
 fi
 
 # Create completion marker
