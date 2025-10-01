@@ -154,8 +154,8 @@ fi
 
 # Check if resource group exists, create if it doesn't
 echo -e "${YELLOW}🔍 Checking if resource group exists...${NC}"
-RG_EXISTS=$(az group exists --name "$RESOURCE_GROUP_NAME" 2>/dev/null)
-if [ "$RG_EXISTS" = "false" ]; then
+RG_EXISTS=$(az group exists --name "$RESOURCE_GROUP_NAME" 2>/dev/null | tr -d '[:space:]')
+if [ "$RG_EXISTS" != "true" ]; then
     echo -e "${YELLOW}📁 Creating resource group: $RESOURCE_GROUP_NAME${NC}"
     az group create --name "$RESOURCE_GROUP_NAME" --location "$LOCATION"
     echo -e "${GREEN}✅ Resource group created successfully${NC}"
