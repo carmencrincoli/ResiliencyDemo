@@ -46,6 +46,10 @@ let replicaPool: Pool;
 let primaryHealthy = true;
 let replicaHealthy = true;
 
+// Health monitoring
+let healthCheckInterval: NodeJS.Timeout | null = null;
+const HEALTH_CHECK_INTERVAL = 30000; // Check every 30 seconds
+
 // Initialize pools
 function initializePools() {
   if (!primaryPool) {
@@ -72,6 +76,33 @@ function initializePools() {
       logger.error('Unexpected error on replica database client', err);
       replicaHealthy = false;
     });
+  }
+  
+  // Start background health monitoring
+  startHealthMonitoring();
+}
+
+// Start background health monitoring
+function startHealthMonitoring() {
+  if (healthCheckInterval) return; // Already running
+  
+  logger.info('Starting background database health monitoring');
+  healthCheckInterval = setInterval(async () => {
+    try {
+      await checkDatabaseHealth();
+      // The checkDatabaseHealth() function already updates primaryHealthy and replicaHealthy flags
+    } catch (error) {
+      logger.error('Background health check failed:', error);
+    }
+  }, HEALTH_CHECK_INTERVAL);
+}
+
+// Stop background health monitoring
+function stopHealthMonitoring() {
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    healthCheckInterval = null;
+    logger.info('Stopped background database health monitoring');
   }
 }
 
@@ -210,6 +241,9 @@ export const testConnections = async (): Promise<boolean> => {
 // Graceful shutdown
 export const closePools = async (): Promise<void> => {
   try {
+    // Stop health monitoring
+    stopHealthMonitoring();
+    
     const promises = [];
     if (primaryPool) {
       promises.push(primaryPool.end());

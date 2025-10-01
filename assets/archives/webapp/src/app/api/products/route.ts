@@ -53,54 +53,17 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Failed to fetch products:', error);
     
-    // Return sample data if database is unavailable
-    const sampleProducts: Product[] = [
-      {
-        id: 1,
-        name: 'Azure Local Server',
-        description: 'High-performance edge computing solution for on-premises deployments',
-        price: 2999.99,
-        category: 'Hardware',
-        stock: 10,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: 2,
-        name: 'Azure Stack HCI',
-        description: 'Hyperconverged infrastructure solution',
-        price: 4999.99,
-        category: 'Hardware',
-        stock: 5,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: 3,
-        name: 'Surface Pro 9',
-        description: 'Versatile 2-in-1 laptop for business and creativity',
-        price: 999.99,
-        category: 'Devices',
-        stock: 25,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-    ];
-    
-    // Get webapp server info even when using fallback data
+    // Get webapp server info even on error
     const webappServerInfo = getWebappServerInfo();
     
     const response: ApiResponse<Product[]> = {
       success: false,
-      data: sampleProducts,
-      error: 'Database temporarily unavailable, showing sample data',
+      data: [],
+      error: 'Database is currently unavailable. Please try again later.',
       serverInfo: {
         webapp: webappServerInfo,
         database: {
-          host: 'fallback',
+          host: 'unavailable',
           port: 0,
           type: 'primary',
           healthy: false
@@ -108,7 +71,7 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    return NextResponse.json(response, { status: 206 }); // Partial content
+    return NextResponse.json(response, { status: 503 }); // Service unavailable
   }
 }
 
