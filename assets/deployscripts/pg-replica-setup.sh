@@ -726,12 +726,13 @@ if [ -n "$LAST_RECEIVED" ] && [ -n "$LAST_REPLAYED" ]; then
     log "Last replayed WAL: $LAST_REPLAYED"
 fi
 
+# Disable cloud-init to prevent network configuration conflicts on future boots
+# log "Disabling cloud-init to prevent network configuration issues..."
+# touch /etc/cloud/cloud-init.disabled 2>/dev/null || log "Warning: Could not disable cloud-init"
+
 # Ensure all background processes complete and file handles are closed
 log "Finalizing deployment and closing all processes..."
 sync  # Force filesystem sync
-
-# Wait for background jobs with timeout instead of indefinite wait
-timeout 30 bash -c 'while jobs -r > /dev/null 2>&1; do sleep 1; done' 2>/dev/null || log "Background jobs completed or timed out"
 
 # Final completion signal
 echo "DEPLOYMENT_COMPLETE: $(date)" >> "$FULL_OUTPUT_LOG"

@@ -30,6 +30,7 @@ desktop.ini
 # Azure
 *.bicep.zip
 *.parameters.local.json
+main.bicepparam
 
 # Logs
 logs/
