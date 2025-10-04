@@ -25,6 +25,10 @@ param adminUsername string
 @secure()
 param adminPassword string
 
+@description('SSH public key for admin user authentication (optional - adds SSH key authentication in addition to password)')
+@secure()
+param sshPublicKey string = ''
+
 @description('Service password for databases, Redis, etc. (shared across all services)')
 @secure()
 param servicePassword string
@@ -109,6 +113,7 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
     storageAccountUrl: blobEndpoint
     servicePassword: servicePassword
     adminPassword: adminPassword
+    sshPublicKey: sshPublicKey
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
   }
@@ -128,6 +133,7 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     storageAccountUrl: blobEndpoint
     servicePassword: servicePassword
     adminPassword: adminPassword
+    sshPublicKey: sshPublicKey
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
   }
@@ -148,6 +154,7 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     storageAccountUrl: blobEndpoint
     servicePassword: servicePassword
     adminPassword: adminPassword
+    sshPublicKey: sshPublicKey
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
   }
@@ -167,6 +174,7 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     storageAccountUrl: blobEndpoint
     servicePassword: servicePassword
     adminPassword: adminPassword
+    sshPublicKey: sshPublicKey
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
   }
@@ -186,6 +194,7 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     bashInstallerUrl: scriptUrls.bashinstaller
     storageAccountUrl: blobEndpoint
     adminPassword: adminPassword
+    sshPublicKey: sshPublicKey
     processors: vmResources.loadBalancer.processors
     memoryMB: vmResources.loadBalancer.memoryMB
   }

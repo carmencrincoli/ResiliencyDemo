@@ -79,7 +79,12 @@ param staticIPs = {
 
 param adminPassword = 'YourSecurePassword!'
 param servicePassword = 'YourDatabasePassword!'
+
+# OPTIONAL: Enable SSH key authentication (recommended for production)
+# param sshPublicKey = loadTextContent('~/.ssh/id_rsa.pub')
 ```
+
+> 💡 **Tip**: For enhanced security, consider using SSH key authentication instead of passwords. See the [SSH Authentication Guide](documentation/SSH_AUTHENTICATION.md) for details.
 
 ### 3. Prepare Deployment
 Run the preparation script to upload assets to Azure Storage:
@@ -112,12 +117,13 @@ Once deployment completes (15-20 minutes):
 http://192.168.x.111  (your load balancer IP)
 ```
 
-## � Documentation
+## 📋 Documentation
 
 Detailed documentation is organized into focused guides:
 
 - **[Architecture & Application Stack](documentation/ARCHITECTURE.md)** - System architecture, component details, application stack, infrastructure as code, application features, and resiliency features
 - **[Deployment Guide & Configuration](documentation/DEPLOYMENT.md)** - Step-by-step deployment, parameter configuration, environment variables, and customization options
+- **[SSH Authentication](documentation/SSH_AUTHENTICATION.md)** - Configure SSH key-based authentication for secure VM access (recommended for production)
 - **[Monitoring & Troubleshooting](documentation/MONITORING.md)** - Health checks, log locations, PM2 management, database operations, and detailed troubleshooting guides
 
 ## 🤝 Contributing

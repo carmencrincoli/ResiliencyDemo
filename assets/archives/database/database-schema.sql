@@ -10,7 +10,7 @@ CREATE DATABASE ecommerce WITH
 
 -- Create application user with strong password encryption
 CREATE USER ecommerce_user WITH 
-    ENCRYPTED PASSWORD 'your_secure_password_here'
+    ENCRYPTED PASSWORD 'SERVICE_PASSWORD_PLACEHOLDER'
     CONNECTION LIMIT 50
     VALID UNTIL 'infinity';
 
@@ -177,7 +177,7 @@ CREATE POLICY orders_own_data_policy ON orders
 -- Create replication user for standby server with minimal privileges
 CREATE USER replicator WITH 
     REPLICATION 
-    ENCRYPTED PASSWORD 'replication_password_here'
+    ENCRYPTED PASSWORD 'SERVICE_PASSWORD_PLACEHOLDER'
     CONNECTION LIMIT 5;
 
 -- Display success message

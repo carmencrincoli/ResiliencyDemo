@@ -7,9 +7,20 @@ module.exports = {
     exec_mode: 'cluster',
     watch: false,
     max_memory_restart: '1G',
+    // Note: env_file doesn't work reliably in all PM2 versions
+    // Environment variables are injected during deployment via this env object
     env: {
       NODE_ENV: 'production',
-      PORT: 3000
+      PORT: '${PORT}',
+      SERVER_IP: '${SERVER_IP}',
+      SERVER_HOSTNAME: '${SERVER_HOSTNAME}',
+      DB_PRIMARY_HOST: '${DB_PRIMARY_HOST}',
+      DB_REPLICA_HOST: '${DB_REPLICA_HOST}',
+      DB_PORT: '${DB_PORT}',
+      DB_NAME: '${DB_NAME}',
+      DB_USER: '${DB_USER}',
+      DB_PASSWORD: '${DB_PASSWORD}',
+      DB_SSL: '${DB_SSL}'
     },
     error_file: '/var/log/webapp/error.log',
     out_file: '/var/log/webapp/access.log',

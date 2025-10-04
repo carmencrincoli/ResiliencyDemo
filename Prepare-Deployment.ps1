@@ -467,5 +467,10 @@ Write-Host "  ✅ All assets processed and uploaded successfully!" -ForegroundCo
 Write-Host "  📝 Parameters File Updated: $ParametersFile" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "🚀 Next Step: Run your Bicep deployment" -ForegroundColor Yellow
+Write-Host "   Basic deployment (password authentication):" -ForegroundColor Cyan
 Write-Host "   az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`"" -ForegroundColor Gray
+Write-Host ""
+Write-Host "   With SSH key (password + SSH authentication):" -ForegroundColor Cyan
+Write-Host "   `$sshKey = Get-Content `"`$env:USERPROFILE\.ssh\id_rsa.pub`" -Raw" -ForegroundColor Gray
+Write-Host "   az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`" --parameters sshPublicKey=`"`$sshKey`"" -ForegroundColor Gray
 Write-Host ""

@@ -338,8 +338,7 @@ if [ -f "database-schema.sql" ]; then
     # Process database schema with environment variables
     sed \
         -e "s/ecommerce_user/$DB_USER/g" \
-        -e "s/your_secure_password_here/$DB_PASSWORD/g" \
-        -e "s/replication_password_here/$REPLICATION_PASSWORD/g" \
+        -e "s/SERVICE_PASSWORD_PLACEHOLDER/$DB_PASSWORD/g" \
         -e "s/ecommerce/$DB_NAME/g" \
         database-schema.sql > processed-schema.sql || handle_error "Failed to process database schema"
     
@@ -475,8 +474,8 @@ if [ -n "$PRODUCT_COUNT" ]; then
 fi
 
 # Disable cloud-init to prevent network configuration conflicts on future boots
-# log "Disabling cloud-init to prevent network configuration issues..."
-# touch /etc/cloud/cloud-init.disabled 2>/dev/null || log "Warning: Could not disable cloud-init"
+log "Disabling cloud-init to prevent network configuration issues..."
+touch /etc/cloud/cloud-init.disabled 2>/dev/null || log "Warning: Could not disable cloud-init"
 
 # Ensure all background processes complete and file handles are closed
 log "Finalizing deployment and closing all processes..."

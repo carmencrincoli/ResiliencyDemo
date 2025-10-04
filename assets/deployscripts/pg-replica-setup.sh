@@ -727,8 +727,8 @@ if [ -n "$LAST_RECEIVED" ] && [ -n "$LAST_REPLAYED" ]; then
 fi
 
 # Disable cloud-init to prevent network configuration conflicts on future boots
-# log "Disabling cloud-init to prevent network configuration issues..."
-# touch /etc/cloud/cloud-init.disabled 2>/dev/null || log "Warning: Could not disable cloud-init"
+log "Disabling cloud-init to prevent network configuration issues..."
+touch /etc/cloud/cloud-init.disabled 2>/dev/null || log "Warning: Could not disable cloud-init"
 
 # Ensure all background processes complete and file handles are closed
 log "Finalizing deployment and closing all processes..."

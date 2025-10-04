@@ -246,9 +246,21 @@ log "Installing PM2 configuration from archive..."
 cp "$TEMP_DIR/ecosystem.config.js" "$APP_DIR/ecosystem.config.js" || handle_error "Failed to copy PM2 config from archive"
 
 # Substitute environment variables in PM2 config
+# These placeholders are replaced with actual values for PM2 to use
 sed -i "s/\${PORT}/$PORT/g" "$APP_DIR/ecosystem.config.js" || log "PORT substitution in PM2 config"
 sed -i "s/\${APP_NAME}/$APP_NAME/g" "$APP_DIR/ecosystem.config.js" || log "APP_NAME substitution in PM2 config"
 sed -i "s/\${LOG_DIR}/$LOG_DIR/g" "$APP_DIR/ecosystem.config.js" || log "LOG_DIR substitution in PM2 config"
+sed -i "s/\${SERVER_IP}/$SERVER_IP/g" "$APP_DIR/ecosystem.config.js" || log "SERVER_IP substitution in PM2 config"
+sed -i "s/\${SERVER_HOSTNAME}/$SERVER_HOSTNAME/g" "$APP_DIR/ecosystem.config.js" || log "SERVER_HOSTNAME substitution in PM2 config"
+sed -i "s/\${DB_PRIMARY_HOST}/$DB_PRIMARY_HOST/g" "$APP_DIR/ecosystem.config.js" || log "DB_PRIMARY_HOST substitution in PM2 config"
+sed -i "s/\${DB_REPLICA_HOST}/$DB_REPLICA_HOST/g" "$APP_DIR/ecosystem.config.js" || log "DB_REPLICA_HOST substitution in PM2 config"
+sed -i "s/\${DB_PORT}/$DB_PORT/g" "$APP_DIR/ecosystem.config.js" || log "DB_PORT substitution in PM2 config"
+sed -i "s/\${DB_NAME}/$DB_NAME/g" "$APP_DIR/ecosystem.config.js" || log "DB_NAME substitution in PM2 config"
+sed -i "s/\${DB_USER}/$DB_USER/g" "$APP_DIR/ecosystem.config.js" || log "DB_USER substitution in PM2 config"
+# Special handling for DB_PASSWORD to escape special characters
+DB_PASSWORD_ESCAPED=$(echo "$DB_PASSWORD" | sed 's/[&/\]/\\&/g')
+sed -i "s/\${DB_PASSWORD}/$DB_PASSWORD_ESCAPED/g" "$APP_DIR/ecosystem.config.js" || log "DB_PASSWORD substitution in PM2 config"
+sed -i "s/\${DB_SSL}/false/g" "$APP_DIR/ecosystem.config.js" || log "DB_SSL substitution in PM2 config"
 
 chown $APP_USER:$APP_USER $APP_DIR/ecosystem.config.js || handle_error "Failed to set PM2 config ownership"
 
@@ -398,8 +410,8 @@ log "Database Integration: PostgreSQL with failover"
 sudo -u $APP_USER pm2 list 2>/dev/null || log "PM2 status unavailable"
 
 # Disable cloud-init to prevent network configuration conflicts on future boots
-# log "Disabling cloud-init to prevent network configuration issues..."
-# touch /etc/cloud/cloud-init.disabled 2>/dev/null || log "Warning: Could not disable cloud-init"
+log "Disabling cloud-init to prevent network configuration issues..."
+touch /etc/cloud/cloud-init.disabled 2>/dev/null || log "Warning: Could not disable cloud-init"
 
 # Ensure all background processes complete and file handles are closed
 log "Finalizing deployment and closing all processes..."

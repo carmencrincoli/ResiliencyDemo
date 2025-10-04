@@ -30,6 +30,10 @@ param storageAccountUrl string
 @secure()
 param adminPassword string
 
+@description('SSH public key for admin user authentication (optional - adds SSH in addition to password)')
+@secure()
+param sshPublicKey string = ''
+
 @description('Number of processors for the VM')
 param processors int
 
@@ -110,6 +114,14 @@ resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01
         disablePasswordAuthentication: false
         provisionVMAgent: true
         provisionVMConfigAgent: true
+        ssh: !empty(sshPublicKey) ? {
+          publicKeys: [
+            {
+              path: '/home/${vmConfig.adminUsername}/.ssh/authorized_keys'
+              keyData: sshPublicKey
+            }
+          ]
+        } : null
       }
     }
     storageProfile: {
