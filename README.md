@@ -57,12 +57,20 @@ The solution automatically provisions and configures:
 
 ### 1. Clone the Repository
 ```powershell
-git clone <repository-url>
+git clone https://github.com/carmencrincoli/ResiliencyDemo.git
 cd ResiliencyDemo
 ```
 
 ### 2. Configure Parameters
-Edit `main.bicepparam` with your environment details:
+**Important**: Create your own parameters file from the template:
+```powershell
+# Copy the template
+Copy-Item template.bicepparam main.bicepparam
+
+# Edit main.bicepparam with your environment details
+```
+
+Edit `main.bicepparam` with your specific values:
 ```bicep
 param customLocationName = 'your-custom-location'
 param logicalNetworkName = 'your-logical-network'
@@ -70,11 +78,11 @@ param azureLocalResourceGroup = 'your-azure-local-rg'
 param vmImageName = 'ubuntu2404-lts-image-name'
 
 param staticIPs = {
-  loadBalancer: '192.168.x.111'
-  dbPrimary: '192.168.x.112'
-  dbReplica: '192.168.x.113'
-  webapp1: '192.168.x.114'
-  webapp2: '192.168.x.115'
+  loadBalancer: '192.168.x.20'
+  dbPrimary: '192.168.x.21'
+  dbReplica: '192.168.x.22'
+  webapp1: '192.168.x.23'
+  webapp2: '192.168.x.24'
 }
 
 param adminPassword = 'YourSecurePassword!'
@@ -83,6 +91,8 @@ param servicePassword = 'YourDatabasePassword!'
 # OPTIONAL: Enable SSH key authentication (recommended for production)
 # param sshPublicKey = loadTextContent('~/.ssh/id_rsa.pub')
 ```
+
+> ⚠️ **Security Note**: The `main.bicepparam` file is in `.gitignore` and will NOT be committed to your repository. This keeps your passwords and configuration private. Always use the `template.bicepparam` as your starting point.
 
 > 💡 **Tip**: For enhanced security, consider using SSH key authentication instead of passwords. See the [SSH Authentication Guide](documentation/SSH_AUTHENTICATION.md) for details.
 
