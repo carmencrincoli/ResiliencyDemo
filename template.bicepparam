@@ -11,7 +11,7 @@ param vmImageName = 'ubuntu2404-lts-image-name'
 param scriptStorageAccount = '' // Leave empty to auto-generate, or specify existing storage account name
 
 // Static IP assignments (update these to match your network range)
-// IMPORTANT: Must be in a /24 subnet (255.255.255.0)
+// All IPs must be in the same subnet
 param staticIPs = {
   loadBalancer: '192.168.x.20'
   dbPrimary: '192.168.x.21'

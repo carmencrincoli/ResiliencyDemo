@@ -167,13 +167,22 @@ if [ -n "$STORAGE_BASE_URL" ]; then
     sed -i "s/LB_HTTP_PORT/$LB_HTTP_PORT/g" /etc/nginx/nginx.conf
     sed -i "s/LB_HTTPS_PORT/$LB_HTTPS_PORT/g" /etc/nginx/nginx.conf
     
-    # Derive subnet CIDR from webapp1 IP (assuming /24 subnet)
-    SUBNET_CIDR=$(echo "$WEBAPP1_IP" | cut -d'.' -f1-3).0/24
+    # Automatically detect subnet CIDR from the system's network configuration
+    # This works with any subnet size (e.g., /24, /25, /26, /27, /16, etc.)
+    # Get the network interface IP and subnet mask, then calculate CIDR
+    SUBNET_CIDR=$(ip -o -f inet addr show | awk '/scope global/ {print $4}' | head -1)
+    
+    # Fallback: If auto-detection fails, use a permissive range based on the first 3 octets
+    if [ -z "$SUBNET_CIDR" ]; then
+        log "Warning: Could not auto-detect subnet, using permissive fallback"
+        SUBNET_CIDR=$(echo "$WEBAPP1_IP" | cut -d'.' -f1-3).0/24
+    fi
+    
     # Use | as delimiter to avoid issues with / in CIDR notation
     sed -i "s|SUBNET_CIDR_PLACEHOLDER|$SUBNET_CIDR|g" /etc/nginx/nginx.conf
     
     log "NGINX configuration updated with environment variables"
-    log "Derived subnet CIDR: $SUBNET_CIDR"
+    log "Detected subnet CIDR: $SUBNET_CIDR"
 else
     handle_error "Storage account URL not provided"
 fi

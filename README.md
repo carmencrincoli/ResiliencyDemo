@@ -47,9 +47,9 @@ The solution automatically provisions and configures:
 
 ### Network Requirements
 - **5 Static IP Addresses** in the same subnet
-- **/24 Virtual Network** (255.255.255.0 subnet mask) - **Required**
-  - The project is designed for /24 networks and cannot be changed without modifying the codebase
-  - All 5 IPs must be in the same /24 subnet
+- **Virtual Network** with sufficient address space for 5 VMs
+  - Supports any subnet size (e.g., /24, /25, /26, /27, or larger)
+  - All 5 IPs must be in the same subnet
 - **Outbound Internet Access** for package downloads
 - **Azure Storage Access** for deployment scripts
 

@@ -156,11 +156,11 @@ infra/
 
 **1. Zero-Touch VM Deployment**
 - Automated VM provisioning on Azure Local
-- Static IP assignment for predictable networking (/24 subnet required)
+- Static IP assignment for predictable networking (all IPs in same subnet)
 - Custom Script Extension for automated software installation
 - Arc-enabled VMs for Azure portal management
 
-> **⚠️ Network Requirement**: This deployment requires a /24 virtual network (255.255.255.0 subnet mask). The project cannot be deployed to networks with different subnet masks without code modifications.
+> **⚠️ Network Requirement**: All 5 static IP addresses must be assigned from the same subnet.
 
 **2. Intelligent Dependency Management**
 ```bicep

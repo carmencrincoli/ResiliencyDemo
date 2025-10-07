@@ -170,7 +170,7 @@ param vmImageName = 'ubuntu2404-lts-image-name'
 param scriptStorageAccount = '' // Leave empty to create a new one
 
 // Static IP assignments (update these to match your network range)
-// IMPORTANT: Must be in a /24 subnet (255.255.255.0)
+// All IPs must be in the same subnet
 param staticIPs = {
   loadBalancer: '192.168.x.111'
   dbPrimary: '192.168.x.112'
@@ -338,11 +338,11 @@ var vmResources = {
 
 **Static IP Management:**
 - All IPs defined in `main.bicepparam`
-- Must be in same /24 subnet (255.255.255.0 subnet mask)
+- Must be in the same subnet (any subnet size supported)
 - Must be available in your network range
 - DNS not required (IPs used directly)
 
-> **⚠️ Important Network Requirement**: This project is designed exclusively for /24 virtual networks. Deploying to networks with different subnet masks (/16, /25, /26, etc.) is not supported and will require modifications to the Bicep templates, setup scripts, and network configurations throughout the codebase.
+> **⚠️ Important Network Requirement**: All 5 static IP addresses must be in the same subnet. The project supports any subnet size (e.g., /24, /25, /26, /27, or larger networks like /16) as long as all IPs are within the same subnet range.
 
 **Required Ports:**
 
