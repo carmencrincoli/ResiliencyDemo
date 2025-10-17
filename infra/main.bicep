@@ -103,15 +103,7 @@ resource existingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' e
 }
 
 // Script URLs from the existing storage account  
-// Format: https://account.blob.core.windows.net/container/blob-path
 var blobEndpoint = existingStorageAccount.properties.primaryEndpoints.blob
-var scriptUrls = {
-  postgresqlPrimary: '${blobEndpoint}assets/deployscripts/pg-primary-setup.sh'
-  postgresqlReplica: '${blobEndpoint}assets/deployscripts/pg-replica-setup.sh'
-  webapp: '${blobEndpoint}assets/deployscripts/webapp-setup.sh'
-  loadbalancer: '${blobEndpoint}assets/deployscripts/loadbalancer-setup.sh'
-  bashinstaller: '${blobEndpoint}assets/deployscripts/bash-installer.sh'
-}
 
 // Deploy PostgreSQL Primary VM first (foundation dependency)
 module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
@@ -126,9 +118,8 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
     proxyCertificate: proxyCertificate
     staticIP: staticIPs.dbPrimary
     replicaIP: staticIPs.dbReplica
-    scriptUrl: scriptUrls.postgresqlPrimary
-    bashInstallerUrl: scriptUrls.bashinstaller
     storageAccountUrl: blobEndpoint
+    storageAccountResourceId: existingStorageAccount.id
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -150,9 +141,8 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     proxyCertificate: proxyCertificate
     staticIP: staticIPs.dbReplica
     primaryIP: staticIPs.dbPrimary
-    scriptUrl: scriptUrls.postgresqlReplica
-    bashInstallerUrl: scriptUrls.bashinstaller
     storageAccountUrl: blobEndpoint
+    storageAccountResourceId: existingStorageAccount.id
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -175,9 +165,8 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     staticIP: staticIPs.webapp1
     databasePrimaryIP: staticIPs.dbPrimary
     databaseReplicaIP: staticIPs.dbReplica
-    scriptUrl: scriptUrls.webapp
-    bashInstallerUrl: scriptUrls.bashinstaller
     storageAccountUrl: blobEndpoint
+    storageAccountResourceId: existingStorageAccount.id
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -199,9 +188,8 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     staticIP: staticIPs.webapp2
     databasePrimaryIP: staticIPs.dbPrimary
     databaseReplicaIP: staticIPs.dbReplica
-    scriptUrl: scriptUrls.webapp
-    bashInstallerUrl: scriptUrls.bashinstaller
     storageAccountUrl: blobEndpoint
+    storageAccountResourceId: existingStorageAccount.id
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -224,9 +212,8 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     staticIP: staticIPs.loadBalancer
     webapp1IP: staticIPs.webapp1
     webapp2IP: staticIPs.webapp2
-    scriptUrl: scriptUrls.loadbalancer
-    bashInstallerUrl: scriptUrls.bashinstaller
     storageAccountUrl: blobEndpoint
+    storageAccountResourceId: existingStorageAccount.id
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
     processors: vmResources.loadBalancer.processors

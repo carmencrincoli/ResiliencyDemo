@@ -131,8 +131,8 @@ if ($rgExists -eq "false") {
 
 # Create or use existing storage account
 if ($createNewAccount) {
-    # Create storage account with anonymous access
-    Write-Host "💾 Creating storage account with anonymous access..." -ForegroundColor Yellow
+    # Create storage account with SECURE access (managed identity only - no anonymous access)
+    Write-Host "💾 Creating storage account with managed identity access (secure)..." -ForegroundColor Yellow
     az storage account create `
         --name $storageAccountName `
         --resource-group $ResourceGroupName `
@@ -140,7 +140,7 @@ if ($createNewAccount) {
         --sku Standard_LRS `
         --kind StorageV2 `
         --access-tier Hot `
-        --allow-blob-public-access true `
+        --allow-blob-public-access false `
         --min-tls-version TLS1_2 `
         --https-only true
 
@@ -149,19 +149,8 @@ if ($createNewAccount) {
         exit 1
     }
 
-    Write-Host "✅ Storage account created successfully" -ForegroundColor Green
-
-    # Ensure blob public access is enabled (sometimes needs explicit update)
-    Write-Host "🔧 Ensuring blob public access is enabled..." -ForegroundColor Yellow
-    az storage account update `
-        --name $storageAccountName `
-        --resource-group $ResourceGroupName `
-        --allow-blob-public-access true `
-        --output none 2>$null
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "⚠️  Warning: Failed to update blob public access setting"
-    }
+    Write-Host "✅ Storage account created successfully with secure access" -ForegroundColor Green
+    Write-Host "� Anonymous blob access is DISABLED - VMs will use managed identity" -ForegroundColor Green
 
     # Wait for storage account to be fully ready
     Write-Host "⏳ Waiting for storage account to be fully provisioned..." -ForegroundColor Yellow
@@ -169,16 +158,18 @@ if ($createNewAccount) {
 } else {
     Write-Host "♻️  Using existing storage account: $storageAccountName" -ForegroundColor Green
     
-    # Verify blob public access is enabled on existing account
-    Write-Host "🔧 Verifying blob public access is enabled..." -ForegroundColor Yellow
+    # Disable blob public access on existing account for security
+    Write-Host "� Ensuring blob public access is DISABLED for security..." -ForegroundColor Yellow
     az storage account update `
         --name $storageAccountName `
         --resource-group $ResourceGroupName `
-        --allow-blob-public-access true `
+        --allow-blob-public-access false `
         --output none 2>$null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "⚠️  Warning: Failed to update blob public access setting"
+    } else {
+        Write-Host "✅ Storage account configured for managed identity access" -ForegroundColor Green
     }
 }
 
@@ -191,8 +182,8 @@ if (-not $storageKey) {
     exit 1
 }
 
-# Create or verify container with public blob access for direct URI access
-Write-Host "📦 Creating/verifying container with public blob access..." -ForegroundColor Yellow
+# Create or verify container with PRIVATE access (managed identity only)
+Write-Host "📦 Creating/verifying container with private access..." -ForegroundColor Yellow
 
 # Check if container exists
 $containerExists = az storage container exists `
@@ -208,39 +199,39 @@ if ($containerExists -eq "true") {
         --name $ContainerName `
         --account-name $storageAccountName `
         --account-key $storageKey `
-        --public-access blob
+        --public-access off
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "❌ Failed to create container"
         exit 1
     }
-    Write-Host "  ✅ Container created successfully" -ForegroundColor Green
+    Write-Host "  ✅ Container created successfully with private access" -ForegroundColor Green
 }
 
-# Verify and ensure container public access is set correctly
-Write-Host "🔧 Verifying container public access..." -ForegroundColor Yellow
+# Ensure container public access is disabled for security
+Write-Host "� Ensuring container has private access (no anonymous access)..." -ForegroundColor Yellow
 az storage container set-permission `
     --name $ContainerName `
     --account-name $storageAccountName `
     --account-key $storageKey `
-    --public-access blob `
+    --public-access off `
     --output none 2>$null
 
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "⚠️  Warning: Failed to set container permissions"
 }
 
-# Verify the public access setting
+# Verify the private access setting
 $publicAccess = az storage container show `
     --name $ContainerName `
     --account-name $storageAccountName `
     --account-key $storageKey `
     --query "properties.publicAccess" -o tsv
 
-if ($publicAccess -eq "blob") {
-    Write-Host "✅ Container created with public blob access verified" -ForegroundColor Green
+if ($publicAccess -eq "None" -or [string]::IsNullOrEmpty($publicAccess)) {
+    Write-Host "✅ Container configured with private access (managed identity only)" -ForegroundColor Green
 } else {
-    Write-Warning "⚠️  Warning: Container public access may not be set correctly (got: $publicAccess)"
+    Write-Warning "⚠️  Warning: Container may still have public access enabled (got: $publicAccess)"
 }
 
 # Upload all assets from upload directory with special handling for archives
@@ -428,24 +419,27 @@ if ($parameterUpdated) {
 }
 Write-Host ""
 
-# Test script accessibility via HTTP
-Write-Host "🧪 Testing asset accessibility via HTTP..." -ForegroundColor Yellow
+# Verify secure access configuration
+Write-Host "🔒 Verifying secure access configuration..." -ForegroundColor Yellow
 $testAsset = $uploadedAssets | Where-Object { $_ -like "*database*" -or $_ -like "*.sh" } | Select-Object -First 1
 if ($testAsset) {
     $testUrl = "${storageEndpoint}${ContainerName}/$testAsset"
-    Write-Host "  🔗 Testing URL: $testUrl" -ForegroundColor Cyan
+    Write-Host "  🔗 Test URL: $testUrl" -ForegroundColor Cyan
     
     try {
         $response = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -ErrorAction Stop
         if ($response.StatusCode -eq 200) {
-            Write-Host "  ✅ HTTP accessibility test PASSED - assets are publicly accessible" -ForegroundColor Green
-        } else {
-            Write-Warning "  ⚠️  HTTP test returned status: $($response.StatusCode)"
+            Write-Warning "  ⚠️  WARNING: Assets are still publicly accessible!" -ForegroundColor Red
+            Write-Host "  🔧 Please check storage account and container security settings." -ForegroundColor Yellow
         }
     } catch {
-        Write-Warning "  ❌ HTTP accessibility test FAILED - assets may not be publicly accessible"
-        Write-Warning "      Error: $($_.Exception.Message)"
-        Write-Host "  🔧 This may cause VM extension failures. Check storage account and container permissions." -ForegroundColor Red
+        # Expected: Assets should NOT be publicly accessible
+        if ($_.Exception.Message -like "*403*" -or $_.Exception.Message -like "*404*" -or $_.Exception.Message -like "*409*") {
+            Write-Host "  ✅ SECURE: Assets are NOT publicly accessible (expected)" -ForegroundColor Green
+            Write-Host "  ℹ️  VMs will use managed identity to access files" -ForegroundColor Cyan
+        } else {
+            Write-Warning "  ⚠️  Unexpected error: $($_.Exception.Message)"
+        }
     }
 } else {
     Write-Warning "  ⚠️  No assets available to test accessibility"
@@ -458,7 +452,9 @@ Write-Host ""
 Write-Host "📋 Summary:" -ForegroundColor White
 Write-Host "  💾 Storage Account: $storageAccountName" -ForegroundColor Cyan
 Write-Host "  📦 Container: $ContainerName" -ForegroundColor Cyan
-Write-Host "  📄 Assets Uploaded: $($uploadedAssets.Count)" -ForegroundColor Cyan
+Write-Host "  � Access Model: Managed Identity (Secure)" -ForegroundColor Green
+Write-Host "  🚫 Anonymous Access: DISABLED" -ForegroundColor Green
+Write-Host "  �📄 Assets Uploaded: $($uploadedAssets.Count)" -ForegroundColor Cyan
 Write-Host "  🗜️  Compressed archives: Created .tar.gz files from \assets\archives subfolders" -ForegroundColor Cyan
 Write-Host "  📋 Other assets: Uploaded all files from \assets EXCEPT the \archives directory" -ForegroundColor Cyan
 Write-Host "  🚫 Excluded: \assets\archives directory (only compressed versions uploaded)" -ForegroundColor Yellow

@@ -165,8 +165,8 @@ fi
 
 # Create or use existing storage account
 if [ "$CREATE_NEW_ACCOUNT" = true ]; then
-    # Create storage account with anonymous access
-    echo -e "${YELLOW}💾 Creating storage account with anonymous access...${NC}"
+    # Create storage account with SECURE access (managed identity only - no anonymous access)
+    echo -e "${YELLOW}💾 Creating storage account with managed identity access (secure)...${NC}"
     az storage account create \
         --name "$STORAGE_ACCOUNT_NAME" \
         --resource-group "$RESOURCE_GROUP_NAME" \
@@ -174,20 +174,12 @@ if [ "$CREATE_NEW_ACCOUNT" = true ]; then
         --sku Standard_LRS \
         --kind StorageV2 \
         --access-tier Hot \
-        --allow-blob-public-access true \
+        --allow-blob-public-access false \
         --min-tls-version TLS1_2 \
         --https-only true
 
-    echo -e "${GREEN}✅ Storage account created successfully${NC}"
-
-    # Ensure blob public access is enabled (sometimes needs explicit update)
-    echo -e "${YELLOW}🔧 Ensuring blob public access is enabled...${NC}"
-    if ! az storage account update \
-        --name "$STORAGE_ACCOUNT_NAME" \
-        --resource-group "$RESOURCE_GROUP_NAME" \
-        --allow-blob-public-access true &>/dev/null; then
-        echo -e "${YELLOW}⚠️  Warning: Failed to update blob public access setting${NC}"
-    fi
+    echo -e "${GREEN}✅ Storage account created successfully with secure access${NC}"
+    echo -e "${GREEN}� Anonymous blob access is DISABLED - VMs will use managed identity${NC}"
 
     # Wait for storage account to be fully ready
     echo -e "${YELLOW}⏳ Waiting for storage account to be fully provisioned...${NC}"
@@ -195,13 +187,15 @@ if [ "$CREATE_NEW_ACCOUNT" = true ]; then
 else
     echo -e "${GREEN}♻️  Using existing storage account: $STORAGE_ACCOUNT_NAME${NC}"
     
-    # Verify blob public access is enabled on existing account
-    echo -e "${YELLOW}🔧 Verifying blob public access is enabled...${NC}"
+    # Disable blob public access on existing account for security
+    echo -e "${YELLOW}� Ensuring blob public access is DISABLED for security...${NC}"
     if ! az storage account update \
         --name "$STORAGE_ACCOUNT_NAME" \
         --resource-group "$RESOURCE_GROUP_NAME" \
-        --allow-blob-public-access true &>/dev/null; then
+        --allow-blob-public-access false &>/dev/null; then
         echo -e "${YELLOW}⚠️  Warning: Failed to update blob public access setting${NC}"
+    else
+        echo -e "${GREEN}✅ Storage account configured for managed identity access${NC}"
     fi
 fi
 
@@ -214,8 +208,8 @@ if [ -z "$STORAGE_KEY" ]; then
     exit 1
 fi
 
-# Create or verify container with public blob access for direct URI access
-echo -e "${YELLOW}📦 Creating/verifying container with public blob access...${NC}"
+# Create or verify container with PRIVATE access (managed identity only)
+echo -e "${YELLOW}📦 Creating/verifying container with private access...${NC}"
 
 # Check if container exists
 CONTAINER_EXISTS=$(az storage container exists \
@@ -231,18 +225,31 @@ else
         --name "$CONTAINER_NAME" \
         --account-name "$STORAGE_ACCOUNT_NAME" \
         --account-key "$STORAGE_KEY" \
-        --public-access blob
+        --public-access off
 
-    echo -e "${GREEN}  ✅ Container created successfully${NC}"
+    echo -e "${GREEN}  ✅ Container created successfully with private access${NC}"
 fi
 
-# Verify and ensure container public access is set correctly
-echo -e "${YELLOW}🔧 Verifying container public access...${NC}"
+# Ensure container public access is disabled for security
+echo -e "${YELLOW}� Ensuring container has private access (no anonymous access)...${NC}"
 az storage container set-permission \
     --name "$CONTAINER_NAME" \
     --account-name "$STORAGE_ACCOUNT_NAME" \
     --account-key "$STORAGE_KEY" \
-    --public-access blob &>/dev/null || echo -e "${YELLOW}⚠️  Warning: Failed to set container permissions${NC}"
+    --public-access off &>/dev/null || echo -e "${YELLOW}⚠️  Warning: Failed to set container permissions${NC}"
+
+# Verify the private access setting
+PUBLIC_ACCESS=$(az storage container show \
+    --name "$CONTAINER_NAME" \
+    --account-name "$STORAGE_ACCOUNT_NAME" \
+    --account-key "$STORAGE_KEY" \
+    --query "properties.publicAccess" -o tsv 2>/dev/null)
+
+if [ -z "$PUBLIC_ACCESS" ] || [ "$PUBLIC_ACCESS" = "None" ]; then
+    echo -e "${GREEN}✅ Container configured with private access (managed identity only)${NC}"
+else
+    echo -e "${YELLOW}⚠️  Warning: Container may still have public access enabled (got: $PUBLIC_ACCESS)${NC}"
+fi
 
 # Upload all assets from upload directory with special handling for archives
 echo -e "${YELLOW}📤 Uploading deployment assets...${NC}"
@@ -393,11 +400,36 @@ mapfile -t UPLOADED_ASSETS < <(az storage blob list --account-name "$STORAGE_ACC
 STORAGE_ENDPOINT=$(az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP_NAME" --query primaryEndpoints.blob -o tsv)
 
 # Display asset URLs
-echo -e "${GREEN}🌐 Asset URLs (publicly accessible):${NC}"
+echo -e "${GREEN}🌐 Asset URLs:${NC}"
 for ASSET in "${UPLOADED_ASSETS[@]}"; do
     URL="${STORAGE_ENDPOINT}${CONTAINER_NAME}/$ASSET"
     echo -e "${CYAN}  📄 $ASSET: $URL${NC}"
 done
+echo ""
+
+# Verify secure access configuration
+echo -e "${YELLOW}🔒 Verifying secure access configuration...${NC}"
+if [ ${#UPLOADED_ASSETS[@]} -gt 0 ]; then
+    # Get first asset for testing
+    TEST_ASSET="${UPLOADED_ASSETS[0]}"
+    TEST_URL="${STORAGE_ENDPOINT}${CONTAINER_NAME}/$TEST_ASSET"
+    echo -e "${CYAN}  � Test URL: $TEST_URL${NC}"
+    
+    # Try to access the URL (should fail with 403, 404, or 409)
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TEST_URL" 2>/dev/null || echo "000")
+    
+    if [ "$HTTP_STATUS" = "200" ]; then
+        echo -e "${YELLOW}  ⚠️  WARNING: Assets are still publicly accessible!${NC}"
+        echo -e "${YELLOW}  🔧 Please check storage account and container security settings.${NC}"
+    elif [ "$HTTP_STATUS" = "403" ] || [ "$HTTP_STATUS" = "404" ] || [ "$HTTP_STATUS" = "409" ]; then
+        echo -e "${GREEN}  ✅ SECURE: Assets are NOT publicly accessible (expected)${NC}"
+        echo -e "${CYAN}  ℹ️  VMs will use managed identity to access files${NC}"
+    else
+        echo -e "${YELLOW}  ⚠️  Unexpected HTTP status: $HTTP_STATUS${NC}"
+    fi
+else
+    echo -e "${YELLOW}  ⚠️  No assets available to test accessibility${NC}"
+fi
 echo ""
 
 # Update main.bicepparam file
@@ -454,6 +486,8 @@ echo ""
 echo -e "${WHITE}📋 Summary:${NC}"
 echo -e "${CYAN}  💾 Storage Account: $STORAGE_ACCOUNT_NAME${NC}"
 echo -e "${CYAN}  📦 Container: $CONTAINER_NAME${NC}"
+echo -e "${GREEN}  🔒 Access Model: Managed Identity (Secure)${NC}"
+echo -e "${GREEN}  🚫 Anonymous Access: DISABLED${NC}"
 echo -e "${CYAN}  📄 Assets Uploaded: ${#UPLOADED_ASSETS[@]}${NC}"
 echo -e "${CYAN}  🗜️  Compressed archives: Created .tar.gz files from \\assets\\archives subfolders${NC}"
 echo -e "${CYAN}  📋 Other assets: Uploaded all files from \\assets EXCEPT the \\archives directory${NC}"

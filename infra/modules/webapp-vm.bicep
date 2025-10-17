@@ -31,14 +31,11 @@ param databasePrimaryIP string
 @description('IP address of the replica database server')
 param databaseReplicaIP string
 
-@description('URL of the deployment script in Azure Storage')
-param scriptUrl string
-
-@description('URL of the bash installer script in Azure Storage')
-param bashInstallerUrl string
-
 @description('Base URL of the Azure Storage account for downloading archives')
 param storageAccountUrl string
+
+@description('Resource ID of the storage account for role assignment')
+param storageAccountResourceId string
 
 @description('Service password for database connections')
 @secure()
@@ -57,6 +54,13 @@ param processors int
 
 @description('Memory in MB for the VM')
 param memoryMB int
+
+// Storage Blob Data Reader role definition ID
+var storageBlobDataReaderRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')
+
+// Extract resource group and account name from storage account resource ID
+var storageResourceGroupName = split(storageAccountResourceId, '/')[4]
+var storageAccountName = split(split(storageAccountUrl, '//')[1], '.')[0]
 
 @description('Web application configuration parameters')
 param webappConfig object = {
@@ -196,8 +200,20 @@ resource aadSSHLoginExtension 'Microsoft.HybridCompute/machines/extensions@2023-
   ]
 }
 
-// Combined setup command with bash installation and webapp setup
-var combinedSetupCommand = 'echo "=== Phase 1: Installing Bash ===" && curl -sSL "${bashInstallerUrl}" -o /tmp/bash-installer.sh && sed -i "s/\r$//" /tmp/bash-installer.sh && chmod +x /tmp/bash-installer.sh && /bin/sh /tmp/bash-installer.sh && echo "=== Phase 2: Setting up Web Application ===" && curl -sSL "${scriptUrl}" -o /tmp/webapp-setup.sh && chmod +x /tmp/webapp-setup.sh && ${envExports} && /bin/bash /tmp/webapp-setup.sh && echo "=== All phases completed successfully ==="'
+// Grant Storage Blob Data Reader role to this VM's managed identity
+// Note: This uses a module to deploy to the storage account's resource group
+module storageRoleAssignment 'storage-role-assignment.bicep' = {
+  name: '${vmName}-storage-role'
+  scope: resourceGroup(subscription().subscriptionId, storageResourceGroupName)
+  params: {
+    storageAccountName: storageAccountName
+    principalId: hybridComputeMachine.identity.principalId
+    roleDefinitionId: storageBlobDataReaderRoleId
+  }
+}
+
+// Combined setup command with Azure CLI installation, authentication, and script execution
+var combinedSetupCommand = 'echo "=== Phase 1: Installing Azure CLI ===" && curl -sL https://aka.ms/InstallAzureCLIDeb | bash && echo "=== Phase 2: Authenticating with Managed Identity ===" && az login --identity --allow-no-subscriptions && echo "=== Phase 3: Installing Bash ===" && az storage blob download --account-name ${storageAccountName} --container-name assets --name deployscripts/bash-installer.sh --file /tmp/bash-installer.sh --auth-mode login && chmod +x /tmp/bash-installer.sh && sed -i "s/\r$//" /tmp/bash-installer.sh && /bin/sh /tmp/bash-installer.sh && echo "=== Phase 4: Downloading Setup Script ===" && az storage blob download --account-name ${storageAccountName} --container-name assets --name deployscripts/webapp-setup.sh --file /tmp/webapp-setup.sh --auth-mode login && chmod +x /tmp/webapp-setup.sh && echo "=== Phase 5: Setting up Web Application ===" && ${envExports} && /bin/bash /tmp/webapp-setup.sh && echo "=== All phases completed successfully ==="'
 
 // Web application setup extension
 resource webappSetupExtension 'Microsoft.HybridCompute/machines/extensions@2023-10-03-preview' = {
@@ -217,6 +233,7 @@ resource webappSetupExtension 'Microsoft.HybridCompute/machines/extensions@2023-
   dependsOn: [
     virtualMachine
     aadSSHLoginExtension
+    storageRoleAssignment
   ]
 }
 
@@ -253,3 +270,6 @@ output connectionInfo object = {
 
 @description('Assigned IP address of the VM')
 output assignedIP string = staticIP
+
+@description('Principal ID of the VM managed identity')
+output principalId string = hybridComputeMachine.identity.principalId

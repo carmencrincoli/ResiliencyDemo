@@ -121,10 +121,21 @@ log "Creating configuration directories..."
 mkdir -p $CONFIG_DIR $SCRIPT_DIR || handle_error "Failed to create directories"
 
 # Download and extract load balancer configuration archive
-log "Downloading load balancer configuration archive..."
+log "Downloading load balancer configuration archive using managed identity..."
 if [ -n "$STORAGE_BASE_URL" ]; then
     log "Downloading from: $LOADBALANCER_ARCHIVE_URL"
-    wget -O loadbalancer.tar.gz "$LOADBALANCER_ARCHIVE_URL" || handle_error "Failed to download loadbalancer archive"
+    # Parse storage account name from URL
+    STORAGE_ACCOUNT=$(echo "$STORAGE_BASE_URL" | sed -n 's/.*\/\/\([^.]*\).*/\1/p')
+    CONTAINER_NAME="assets"
+    BLOB_NAME="loadbalancer.tar.gz"
+    
+    log "Storage Account: $STORAGE_ACCOUNT, Container: $CONTAINER_NAME, Blob: $BLOB_NAME"
+    az storage blob download \
+        --account-name "$STORAGE_ACCOUNT" \
+        --container-name "$CONTAINER_NAME" \
+        --name "$BLOB_NAME" \
+        --file "loadbalancer.tar.gz" \
+        --auth-mode login || handle_error "Failed to download loadbalancer archive with managed identity"
     
     # Verify archive was downloaded
     if [ ! -f "loadbalancer.tar.gz" ]; then

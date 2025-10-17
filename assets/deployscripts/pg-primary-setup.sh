@@ -118,10 +118,21 @@ mkdir -p "$SCRIPT_DIR/backups" || handle_error "Failed to create backups directo
 mkdir -p "/var/lib/postgresql/$POSTGRES_VERSION/main/archive" || handle_error "Failed to create archive directory"
 
 # Download and extract database configuration archive
-log "Downloading database configuration archive..."
+log "Downloading database configuration archive using managed identity..."
 if [ -n "$STORAGE_BASE_URL" ]; then
     log "Downloading from: $DATABASE_ARCHIVE_URL"
-    wget -O database.tar.gz "$DATABASE_ARCHIVE_URL" || handle_error "Failed to download database archive"
+    # Parse storage account name from URL
+    STORAGE_ACCOUNT=$(echo "$STORAGE_BASE_URL" | sed -n 's/.*\/\/\([^.]*\).*/\1/p')
+    CONTAINER_NAME="assets"
+    BLOB_NAME="database.tar.gz"
+    
+    log "Storage Account: $STORAGE_ACCOUNT, Container: $CONTAINER_NAME, Blob: $BLOB_NAME"
+    az storage blob download \
+        --account-name "$STORAGE_ACCOUNT" \
+        --container-name "$CONTAINER_NAME" \
+        --name "$BLOB_NAME" \
+        --file "database.tar.gz" \
+        --auth-mode login || handle_error "Failed to download database archive with managed identity"
     
     # Verify archive was downloaded
     if [ ! -f "database.tar.gz" ]; then
