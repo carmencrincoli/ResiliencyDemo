@@ -8,6 +8,20 @@ param location string
 @description('Common VM configuration object')
 param vmConfig object
 
+@description('HTTP proxy server URL (optional - leave empty to disable proxy)')
+@secure()
+param httpProxy string = ''
+
+@description('HTTPS proxy server URL (optional - leave empty to disable proxy)')
+@secure()
+param httpsProxy string = ''
+
+@description('URLs that should bypass the proxy (optional - comma-separated list)')
+param noProxy string = ''
+
+@description('Certificate file path or content for proxy authentication (optional)')
+param proxyCertificate string = ''
+
 @description('Static IP address for this VM')
 param staticIP string
 
@@ -129,6 +143,13 @@ resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01
         id: imageId
       }
     }
+    // HTTP/HTTPS proxy configuration for the VM
+    httpProxyConfig: !empty(httpProxy) || !empty(httpsProxy) ? {
+      httpProxy: !empty(httpProxy) ? httpProxy : null
+      httpsProxy: !empty(httpsProxy) ? httpsProxy : null
+      noProxy: !empty(noProxy) ? split(noProxy, ',') : null
+      trustedCa: !empty(proxyCertificate) ? proxyCertificate : null
+    } : null
     networkProfile: {
       networkInterfaces: [
         {

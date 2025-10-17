@@ -342,7 +342,7 @@ var vmResources = {
 - Must be available in your network range
 - DNS not required (IPs used directly)
 
-> **⚠️ Important Network Requirement**: All 5 static IP addresses must be in the same subnet. The project supports any subnet size (e.g., /24, /25, /26, /27, or larger networks like /16) as long as all IPs are within the same subnet range.
+> **⚠️ Important Network Requirement**: All 5 static IP addresses must be in the same subnet.
 
 **Required Ports:**
 

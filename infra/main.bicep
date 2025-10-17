@@ -42,6 +42,20 @@ param scriptStorageAccount string
 @description('Timestamp parameter for additional randomization')
 param timestamp string = utcNow()
 
+@description('HTTP proxy server URL (optional - leave empty to disable proxy)')
+@secure()
+param httpProxy string = ''
+
+@description('HTTPS proxy server URL (optional - leave empty to disable proxy)')
+@secure()
+param httpsProxy string = ''
+
+@description('URLs that should bypass the proxy (optional - comma-separated list)')
+param noProxy string = 'localhost,127.0.0.1,.svc,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.0.0.0/8'
+
+@description('Certificate file path or content for proxy authentication (optional)')
+param proxyCertificate string = ''
+
 @description('Resource token for unique naming - combines multiple entropy sources for better randomization')
 var resourceToken = substring(uniqueString(resourceGroup().id, deployment().name, timestamp), 0, 6)
 
@@ -106,6 +120,10 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
     vmName: vmNames.dbPrimary
     location: location
     vmConfig: vmConfig
+    httpProxy: httpProxy
+    httpsProxy: httpsProxy
+    noProxy: noProxy
+    proxyCertificate: proxyCertificate
     staticIP: staticIPs.dbPrimary
     replicaIP: staticIPs.dbReplica
     scriptUrl: scriptUrls.postgresqlPrimary
@@ -126,6 +144,10 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     vmName: vmNames.dbReplica
     location: location
     vmConfig: vmConfig
+    httpProxy: httpProxy
+    httpsProxy: httpsProxy
+    noProxy: noProxy
+    proxyCertificate: proxyCertificate
     staticIP: staticIPs.dbReplica
     primaryIP: staticIPs.dbPrimary
     scriptUrl: scriptUrls.postgresqlReplica
@@ -146,6 +168,10 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     vmName: vmNames.webapp1
     location: location
     vmConfig: vmConfig
+    httpProxy: httpProxy
+    httpsProxy: httpsProxy
+    noProxy: noProxy
+    proxyCertificate: proxyCertificate
     staticIP: staticIPs.webapp1
     databasePrimaryIP: staticIPs.dbPrimary
     databaseReplicaIP: staticIPs.dbReplica
@@ -166,6 +192,10 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     vmName: vmNames.webapp2
     location: location
     vmConfig: vmConfig
+    httpProxy: httpProxy
+    httpsProxy: httpsProxy
+    noProxy: noProxy
+    proxyCertificate: proxyCertificate
     staticIP: staticIPs.webapp2
     databasePrimaryIP: staticIPs.dbPrimary
     databaseReplicaIP: staticIPs.dbReplica
@@ -187,6 +217,10 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     vmName: vmNames.loadBalancer
     location: location
     vmConfig: vmConfig
+    httpProxy: httpProxy
+    httpsProxy: httpsProxy
+    noProxy: noProxy
+    proxyCertificate: proxyCertificate
     staticIP: staticIPs.loadBalancer
     webapp1IP: staticIPs.webapp1
     webapp2IP: staticIPs.webapp2
