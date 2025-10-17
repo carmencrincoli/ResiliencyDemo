@@ -40,6 +40,8 @@ echo "# End of exports" >> "$EXPORT_LOG"
 # Redirect all output to both log file and console using tee
 exec > >(tee -a "$FULL_OUTPUT_LOG") 2>&1
 
+set -e
+
 # Logging functions
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') [PG-PRIMARY-SETUP] $1"
@@ -51,7 +53,63 @@ handle_error() {
     exit 1
 }
 
+# ==============================================================================
+# SHELL CONFIGURATION AND SYSTEM PREPARATION
+# ==============================================================================
+log "Starting system preparation and shell configuration..."
 
+# Disable automatic updates to prevent package lock conflicts during deployment
+log "Stopping and disabling unattended-upgrades to prevent lock conflicts..."
+systemctl stop unattended-upgrades 2>/dev/null || log "unattended-upgrades not running"
+systemctl disable unattended-upgrades 2>/dev/null || log "unattended-upgrades not installed"
+
+# Stop apt-daily services that can cause lock conflicts
+log "Stopping apt-daily services..."
+systemctl stop apt-daily.timer 2>/dev/null || true
+systemctl stop apt-daily-upgrade.timer 2>/dev/null || true
+systemctl disable apt-daily.timer 2>/dev/null || true
+systemctl disable apt-daily-upgrade.timer 2>/dev/null || true
+systemctl stop apt-daily.service 2>/dev/null || true
+systemctl stop apt-daily-upgrade.service 2>/dev/null || true
+
+# Configure bash as default shell
+log "Configuring bash as default shell..."
+export SHELL="/bin/bash"
+
+# Add bash to shells if not present
+if [[ ! -f "/etc/shells" ]] || ! grep -q "^/bin/bash$" /etc/shells 2>/dev/null; then
+    echo "/bin/bash" >> /etc/shells 2>/dev/null || log "Could not update /etc/shells"
+    log "Added /bin/bash to /etc/shells"
+fi
+
+# Configure default shell for new users
+if [[ -f "/etc/default/useradd" ]]; then
+    if grep -q "^SHELL=" /etc/default/useradd 2>/dev/null; then
+        sed -i 's|^SHELL=.*|SHELL=/bin/bash|' /etc/default/useradd 2>/dev/null || log "Could not update useradd default shell"
+    else
+        echo "SHELL=/bin/bash" >> /etc/default/useradd 2>/dev/null || log "Could not add default shell to useradd"
+    fi
+else
+    echo "SHELL=/bin/bash" > /etc/default/useradd 2>/dev/null || log "Could not create useradd configuration"
+fi
+
+# Update root shell
+if command -v usermod &>/dev/null; then
+    usermod -s /bin/bash root || log "Could not update root shell via usermod"
+    log "Set bash as default shell for root"
+fi
+
+# Update ubuntu user shell if exists
+if id ubuntu &>/dev/null && command -v usermod &>/dev/null; then
+    usermod -s /bin/bash ubuntu || log "Could not update ubuntu shell via usermod"
+    log "Set bash as default shell for ubuntu user"
+fi
+
+log "System preparation and shell configuration completed"
+
+# ==============================================================================
+# MAIN DEPLOYMENT SECTION
+# ==============================================================================
 
 # Cleanup function
 cleanup() {
@@ -495,5 +553,23 @@ sync  # Force filesystem sync
 # Final completion signal
 echo "DEPLOYMENT_COMPLETE: $(date)" >> "$FULL_OUTPUT_LOG"
 log "Setup completed successfully. PostgreSQL Primary deployment finished."
+
+# ==============================================================================
+# RE-ENABLE AUTOMATIC UPDATES
+# ==============================================================================
+log "Re-enabling automatic updates and apt-daily services..."
+
+# Re-enable apt-daily services
+systemctl enable apt-daily.timer 2>/dev/null || log "apt-daily.timer not available to enable"
+systemctl enable apt-daily-upgrade.timer 2>/dev/null || log "apt-daily-upgrade.timer not available to enable"
+systemctl start apt-daily.timer 2>/dev/null || log "apt-daily.timer not available to start"
+systemctl start apt-daily-upgrade.timer 2>/dev/null || log "apt-daily-upgrade.timer not available to start"
+
+# Re-enable unattended-upgrades
+systemctl enable unattended-upgrades 2>/dev/null || log "unattended-upgrades not available to enable"
+systemctl start unattended-upgrades 2>/dev/null || log "unattended-upgrades not available to start"
+
+log "Automatic updates and services re-enabled"
+log "PostgreSQL Primary deployment fully completed"
 
 exit 0
