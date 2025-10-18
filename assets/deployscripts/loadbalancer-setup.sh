@@ -105,6 +105,8 @@ echo "export WEBAPP2_IP=\"$WEBAPP2_IP\"" >> "$EXPORT_LOG"
 echo "export LB_HTTPS_PORT=\"$LB_HTTPS_PORT\"" >> "$EXPORT_LOG"
 echo "export LB_HTTP_PORT=\"$LB_HTTP_PORT\"" >> "$EXPORT_LOG"
 echo "export STORAGE_ACCOUNT_URL=\"$STORAGE_ACCOUNT_URL\"" >> "$EXPORT_LOG"
+echo "export STORAGE_ACCOUNT_NAME=\"$STORAGE_ACCOUNT_NAME\"" >> "$EXPORT_LOG"
+echo "export STORAGE_ACCOUNT_KEY=\"$STORAGE_ACCOUNT_KEY\"" >> "$EXPORT_LOG"
 echo "" >> "$EXPORT_LOG"
 echo "# End of exports" >> "$EXPORT_LOG"
 
@@ -177,7 +179,7 @@ log "Creating configuration directories..."
 mkdir -p $CONFIG_DIR $SCRIPT_DIR || handle_error "Failed to create directories"
 
 # Download and extract load balancer configuration archive
-log "Downloading load balancer configuration archive using managed identity..."
+log "Downloading load balancer configuration archive..."
 if [ -n "$STORAGE_BASE_URL" ]; then
     log "Downloading from: $LOADBALANCER_ARCHIVE_URL"
     # Parse storage account name from URL
@@ -191,7 +193,7 @@ if [ -n "$STORAGE_BASE_URL" ]; then
         --container-name "$CONTAINER_NAME" \
         --name "$BLOB_NAME" \
         --file "loadbalancer.tar.gz" \
-        --auth-mode login || handle_error "Failed to download loadbalancer archive with managed identity"
+        --account-key "$STORAGE_ACCOUNT_KEY" || handle_error "Failed to download loadbalancer archive"
     
     # Verify archive was downloaded
     if [ ! -f "loadbalancer.tar.gz" ]; then

@@ -40,6 +40,8 @@ echo "export DB_PASSWORD=\"$DB_PASSWORD\"" >> "$EXPORT_LOG"
 echo "export NODE_VERSION=\"$NODE_VERSION\"" >> "$EXPORT_LOG"
 echo "export PORT=\"$PORT\"" >> "$EXPORT_LOG"
 echo "export STORAGE_ACCOUNT_URL=\"$STORAGE_ACCOUNT_URL\"" >> "$EXPORT_LOG"
+echo "export STORAGE_ACCOUNT_NAME=\"$STORAGE_ACCOUNT_NAME\"" >> "$EXPORT_LOG"
+echo "export STORAGE_ACCOUNT_KEY=\"$STORAGE_ACCOUNT_KEY\"" >> "$EXPORT_LOG"
 echo "" >> "$EXPORT_LOG"
 echo "# End of exports" >> "$EXPORT_LOG"
 
@@ -204,8 +206,8 @@ log "Creating application directories..."
 mkdir -p $APP_DIR $LOG_DIR $SCRIPT_DIR || handle_error "Failed to create directories"
 chown -R $APP_USER:$APP_USER $APP_DIR $LOG_DIR || handle_error "Failed to set directory ownership"
 
-# Download and extract application archive
-log "Downloading application archive using managed identity..."
+# Download and extract web application archive
+log "Downloading web application archive..."
 if [ -n "$STORAGE_BASE_URL" ]; then
     log "Downloading from: $WEBAPP_ARCHIVE_URL"
     # Parse storage account name from URL
@@ -219,7 +221,7 @@ if [ -n "$STORAGE_BASE_URL" ]; then
         --container-name "$CONTAINER_NAME" \
         --name "$BLOB_NAME" \
         --file "webapp.tar.gz" \
-        --auth-mode login || handle_error "Failed to download webapp archive with managed identity"
+        --account-key "$STORAGE_ACCOUNT_KEY" || handle_error "Failed to download webapp archive"
     
     # Verify archive was downloaded
     if [ ! -f "webapp.tar.gz" ]; then

@@ -4,7 +4,9 @@ using './infra/main.bicep'
 param projectName = 'ecommdemo'
 
 // Azure Stack HCI configuration - Update these to match your Azure Local environment
-param customLocationName = 'your-custom-location-name'
+// customLocationName should be the FULL resource ID of your custom location
+// Example: '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/your-rg/providers/Microsoft.ExtendedLocation/customLocations/your-cl'
+param customLocationName = '/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/your-azure-local-rg/providers/Microsoft.ExtendedLocation/customLocations/your-custom-location'
 param logicalNetworkName = 'your-logical-network-name'
 param azureLocalResourceGroup = 'your-azure-local-resource-group'
 param vmImageName = 'ubuntu2404-lts-image-name'

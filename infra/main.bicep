@@ -9,7 +9,7 @@ param projectName string = 'ecommerce'
 @description('Azure region for resource metadata')
 param location string = resourceGroup().location
 
-@description('Name of the Azure Local custom location')
+@description('Full resource ID of the Azure Local custom location (e.g., /subscriptions/.../resourceGroups/.../providers/Microsoft.ExtendedLocation/customLocations/...)')
 param customLocationName string
 
 @description('Name of the Azure Local logical network')
@@ -64,7 +64,7 @@ var vmConfig = {
   size: 'Custom'
   adminUsername: adminUsername
   imageName: vmImageName
-  customLocationName: customLocationName
+  customLocationId: customLocationName
   logicalNetworkName: logicalNetworkName
   azureLocalResourceGroup: azureLocalResourceGroup
 }
@@ -104,6 +104,7 @@ resource existingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' e
 
 // Script URLs from the existing storage account  
 var blobEndpoint = existingStorageAccount.properties.primaryEndpoints.blob
+var storageAccountKey = existingStorageAccount.listKeys().keys[0].value
 
 // Deploy PostgreSQL Primary VM first (foundation dependency)
 module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
@@ -119,7 +120,8 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
     staticIP: staticIPs.dbPrimary
     replicaIP: staticIPs.dbReplica
     storageAccountUrl: blobEndpoint
-    storageAccountResourceId: existingStorageAccount.id
+    storageAccountName: scriptStorageAccount
+    storageAccountKey: storageAccountKey
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -142,7 +144,8 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     staticIP: staticIPs.dbReplica
     primaryIP: staticIPs.dbPrimary
     storageAccountUrl: blobEndpoint
-    storageAccountResourceId: existingStorageAccount.id
+    storageAccountName: scriptStorageAccount
+    storageAccountKey: storageAccountKey
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -166,7 +169,8 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     databasePrimaryIP: staticIPs.dbPrimary
     databaseReplicaIP: staticIPs.dbReplica
     storageAccountUrl: blobEndpoint
-    storageAccountResourceId: existingStorageAccount.id
+    storageAccountName: scriptStorageAccount
+    storageAccountKey: storageAccountKey
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -189,7 +193,8 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     databasePrimaryIP: staticIPs.dbPrimary
     databaseReplicaIP: staticIPs.dbReplica
     storageAccountUrl: blobEndpoint
-    storageAccountResourceId: existingStorageAccount.id
+    storageAccountName: scriptStorageAccount
+    storageAccountKey: storageAccountKey
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
@@ -213,7 +218,8 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     webapp1IP: staticIPs.webapp1
     webapp2IP: staticIPs.webapp2
     storageAccountUrl: blobEndpoint
-    storageAccountResourceId: existingStorageAccount.id
+    storageAccountName: scriptStorageAccount
+    storageAccountKey: storageAccountKey
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
     processors: vmResources.loadBalancer.processors

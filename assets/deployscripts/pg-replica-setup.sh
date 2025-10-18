@@ -30,6 +30,8 @@ echo "export DB_PASSWORD=\"$DB_PASSWORD\"" >> "$EXPORT_LOG"
 echo "export DB_PORT=\"$DB_PORT\"" >> "$EXPORT_LOG"
 echo "export PRIMARY_IP=\"$PRIMARY_IP\"" >> "$EXPORT_LOG"
 echo "export STORAGE_ACCOUNT_URL=\"$STORAGE_ACCOUNT_URL\"" >> "$EXPORT_LOG"
+echo "export STORAGE_ACCOUNT_NAME=\"$STORAGE_ACCOUNT_NAME\"" >> "$EXPORT_LOG"
+echo "export STORAGE_ACCOUNT_KEY=\"$STORAGE_ACCOUNT_KEY\"" >> "$EXPORT_LOG"
 echo "" >> "$EXPORT_LOG"
 echo "# End of exports" >> "$EXPORT_LOG"
 
@@ -174,7 +176,7 @@ log "Creating application directories..."
 mkdir -p "$SCRIPT_DIR" || handle_error "Failed to create script directory"
 
 # Download and extract database configuration archive
-log "Downloading database configuration archive using managed identity..."
+log "Downloading database configuration archive..."
 if [ -n "$STORAGE_BASE_URL" ]; then
     log "Downloading from: $DATABASE_ARCHIVE_URL"
     # Parse storage account name from URL
@@ -188,7 +190,7 @@ if [ -n "$STORAGE_BASE_URL" ]; then
         --container-name "$CONTAINER_NAME" \
         --name "$BLOB_NAME" \
         --file "database.tar.gz" \
-        --auth-mode login || handle_error "Failed to download database archive with managed identity"
+        --account-key "$STORAGE_ACCOUNT_KEY" || handle_error "Failed to download database archive"
     
     # Verify archive was downloaded
     if [ ! -f "database.tar.gz" ]; then

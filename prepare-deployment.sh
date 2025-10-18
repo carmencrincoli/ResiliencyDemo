@@ -165,8 +165,8 @@ fi
 
 # Create or use existing storage account
 if [ "$CREATE_NEW_ACCOUNT" = true ]; then
-    # Create storage account with SECURE access (managed identity only - no anonymous access)
-    echo -e "${YELLOW}💾 Creating storage account with managed identity access (secure)...${NC}"
+    # Create storage account with SECURE access (storage account key - no anonymous access)
+    echo -e "${YELLOW}💾 Creating storage account with key-based authentication (secure)...${NC}"
     az storage account create \
         --name "$STORAGE_ACCOUNT_NAME" \
         --resource-group "$RESOURCE_GROUP_NAME" \
@@ -179,7 +179,7 @@ if [ "$CREATE_NEW_ACCOUNT" = true ]; then
         --https-only true
 
     echo -e "${GREEN}✅ Storage account created successfully with secure access${NC}"
-    echo -e "${GREEN}� Anonymous blob access is DISABLED - VMs will use managed identity${NC}"
+    echo -e "${GREEN}🔒 Anonymous blob access is DISABLED - VMs will use storage account key${NC}"
 
     # Wait for storage account to be fully ready
     echo -e "${YELLOW}⏳ Waiting for storage account to be fully provisioned...${NC}"
@@ -195,7 +195,7 @@ else
         --allow-blob-public-access false &>/dev/null; then
         echo -e "${YELLOW}⚠️  Warning: Failed to update blob public access setting${NC}"
     else
-        echo -e "${GREEN}✅ Storage account configured for managed identity access${NC}"
+        echo -e "${GREEN}✅ Storage account configured for key-based authentication${NC}"
     fi
 fi
 
@@ -208,7 +208,7 @@ if [ -z "$STORAGE_KEY" ]; then
     exit 1
 fi
 
-# Create or verify container with PRIVATE access (managed identity only)
+# Create or verify container with PRIVATE access (key-based authentication)
 echo -e "${YELLOW}📦 Creating/verifying container with private access...${NC}"
 
 # Check if container exists
@@ -246,7 +246,7 @@ PUBLIC_ACCESS=$(az storage container show \
     --query "properties.publicAccess" -o tsv 2>/dev/null)
 
 if [ -z "$PUBLIC_ACCESS" ] || [ "$PUBLIC_ACCESS" = "None" ]; then
-    echo -e "${GREEN}✅ Container configured with private access (managed identity only)${NC}"
+    echo -e "${GREEN}✅ Container configured with private access (key-based authentication)${NC}"
 else
     echo -e "${YELLOW}⚠️  Warning: Container may still have public access enabled (got: $PUBLIC_ACCESS)${NC}"
 fi
@@ -423,7 +423,7 @@ if [ ${#UPLOADED_ASSETS[@]} -gt 0 ]; then
         echo -e "${YELLOW}  🔧 Please check storage account and container security settings.${NC}"
     elif [ "$HTTP_STATUS" = "403" ] || [ "$HTTP_STATUS" = "404" ] || [ "$HTTP_STATUS" = "409" ]; then
         echo -e "${GREEN}  ✅ SECURE: Assets are NOT publicly accessible (expected)${NC}"
-        echo -e "${CYAN}  ℹ️  VMs will use managed identity to access files${NC}"
+        echo -e "${CYAN}  ℹ️  VMs will use storage account key to access files${NC}"
     else
         echo -e "${YELLOW}  ⚠️  Unexpected HTTP status: $HTTP_STATUS${NC}"
     fi
@@ -486,7 +486,7 @@ echo ""
 echo -e "${WHITE}📋 Summary:${NC}"
 echo -e "${CYAN}  💾 Storage Account: $STORAGE_ACCOUNT_NAME${NC}"
 echo -e "${CYAN}  📦 Container: $CONTAINER_NAME${NC}"
-echo -e "${GREEN}  🔒 Access Model: Managed Identity (Secure)${NC}"
+echo -e "${GREEN}  🔒 Access Model: Storage Account Key (Secure)${NC}"
 echo -e "${GREEN}  🚫 Anonymous Access: DISABLED${NC}"
 echo -e "${CYAN}  📄 Assets Uploaded: ${#UPLOADED_ASSETS[@]}${NC}"
 echo -e "${CYAN}  🗜️  Compressed archives: Created .tar.gz files from \\assets\\archives subfolders${NC}"
