@@ -157,7 +157,7 @@ echo -e "${YELLOW}🔍 Checking if resource group exists...${NC}"
 RG_EXISTS=$(az group exists --name "$RESOURCE_GROUP_NAME" 2>/dev/null | tr -d '[:space:]')
 if [ "$RG_EXISTS" != "true" ]; then
     echo -e "${YELLOW}📁 Creating resource group: $RESOURCE_GROUP_NAME${NC}"
-    az group create --name "$RESOURCE_GROUP_NAME" --location "$LOCATION"
+    az group create --name "$RESOURCE_GROUP_NAME" --location "$LOCATION" --output none 2>/dev/null
     echo -e "${GREEN}✅ Resource group created successfully${NC}"
 else
     echo -e "${GREEN}✅ Resource group already exists${NC}"
@@ -176,10 +176,10 @@ if [ "$CREATE_NEW_ACCOUNT" = true ]; then
         --access-tier Hot \
         --allow-blob-public-access false \
         --min-tls-version TLS1_2 \
-        --https-only true
+        --https-only true \
+        --output none 2>/dev/null
 
-    echo -e "${GREEN}✅ Storage account created successfully with secure access${NC}"
-    echo -e "${GREEN}🔒 Anonymous blob access is DISABLED - VMs will use storage account key${NC}"
+    echo -e "${GREEN}✅ Storage account created successfully${NC}"
 
     # Wait for storage account to be fully ready
     echo -e "${YELLOW}⏳ Waiting for storage account to be fully provisioned...${NC}"
@@ -225,7 +225,8 @@ else
         --name "$CONTAINER_NAME" \
         --account-name "$STORAGE_ACCOUNT_NAME" \
         --account-key "$STORAGE_KEY" \
-        --public-access off
+        --public-access off \
+        --output none 2>/dev/null
 
     echo -e "${GREEN}  ✅ Container created successfully with private access${NC}"
 fi
@@ -387,49 +388,8 @@ fi
 # Return to original directory
 cd - >/dev/null
 
-# Get list of uploaded assets for verification
-echo -e "${YELLOW}🔍 Verifying uploaded scripts...${NC}"
-echo ""
-az storage blob list --account-name "$STORAGE_ACCOUNT_NAME" --account-key "$STORAGE_KEY" --container-name "$CONTAINER_NAME" --output table
-echo ""
-
-# Get uploaded assets list
-mapfile -t UPLOADED_ASSETS < <(az storage blob list --account-name "$STORAGE_ACCOUNT_NAME" --account-key "$STORAGE_KEY" --container-name "$CONTAINER_NAME" --query "[].name" -o tsv)
-
-# Get storage endpoint for URLs
-STORAGE_ENDPOINT=$(az storage account show --name "$STORAGE_ACCOUNT_NAME" --resource-group "$RESOURCE_GROUP_NAME" --query primaryEndpoints.blob -o tsv)
-
-# Display asset URLs
-echo -e "${GREEN}🌐 Asset URLs:${NC}"
-for ASSET in "${UPLOADED_ASSETS[@]}"; do
-    URL="${STORAGE_ENDPOINT}${CONTAINER_NAME}/$ASSET"
-    echo -e "${CYAN}  📄 $ASSET: $URL${NC}"
+# Update main.bicepparam file
 done
-echo ""
-
-# Verify secure access configuration
-echo -e "${YELLOW}🔒 Verifying secure access configuration...${NC}"
-if [ ${#UPLOADED_ASSETS[@]} -gt 0 ]; then
-    # Get first asset for testing
-    TEST_ASSET="${UPLOADED_ASSETS[0]}"
-    TEST_URL="${STORAGE_ENDPOINT}${CONTAINER_NAME}/$TEST_ASSET"
-    echo -e "${CYAN}  � Test URL: $TEST_URL${NC}"
-    
-    # Try to access the URL (should fail with 403, 404, or 409)
-    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TEST_URL" 2>/dev/null || echo "000")
-    
-    if [ "$HTTP_STATUS" = "200" ]; then
-        echo -e "${YELLOW}  ⚠️  WARNING: Assets are still publicly accessible!${NC}"
-        echo -e "${YELLOW}  🔧 Please check storage account and container security settings.${NC}"
-    elif [ "$HTTP_STATUS" = "403" ] || [ "$HTTP_STATUS" = "404" ] || [ "$HTTP_STATUS" = "409" ]; then
-        echo -e "${GREEN}  ✅ SECURE: Assets are NOT publicly accessible (expected)${NC}"
-        echo -e "${CYAN}  ℹ️  VMs will use storage account key to access files${NC}"
-    else
-        echo -e "${YELLOW}  ⚠️  Unexpected HTTP status: $HTTP_STATUS${NC}"
-    fi
-else
-    echo -e "${YELLOW}  ⚠️  No assets available to test accessibility${NC}"
-fi
 echo ""
 
 # Update main.bicepparam file
@@ -486,15 +446,16 @@ echo ""
 echo -e "${WHITE}📋 Summary:${NC}"
 echo -e "${CYAN}  💾 Storage Account: $STORAGE_ACCOUNT_NAME${NC}"
 echo -e "${CYAN}  📦 Container: $CONTAINER_NAME${NC}"
-echo -e "${GREEN}  🔒 Access Model: Storage Account Key (Secure)${NC}"
-echo -e "${GREEN}  🚫 Anonymous Access: DISABLED${NC}"
+echo -e "${GREEN}   Anonymous Access: DISABLED${NC}"
 echo -e "${CYAN}  📄 Assets Uploaded: ${#UPLOADED_ASSETS[@]}${NC}"
-echo -e "${CYAN}  🗜️  Compressed archives: Created .tar.gz files from \\assets\\archives subfolders${NC}"
-echo -e "${CYAN}  📋 Other assets: Uploaded all files from \\assets EXCEPT the \\archives directory${NC}"
-echo -e "${YELLOW}  🚫 Excluded: \\assets\\archives directory (only compressed versions uploaded)${NC}"
 echo -e "${GREEN}  ✅ All assets processed and uploaded successfully!${NC}"
-echo -e "${CYAN}  📝 Parameters File Updated: $PARAMETERS_FILE${NC}"
+echo -e "${CYAN}  � Parameters File Updated: $PARAMETERS_FILE${NC}"
 echo ""
-echo -e "${YELLOW}🚀 Next Step: Run your Bicep deployment${NC}"
-echo -e "${GRAY}   az deployment group create --resource-group \"$RESOURCE_GROUP_NAME\" --template-file \"infra/main.bicep\" --parameters \"$PARAMETERS_FILE\"${NC}"
+echo -e "${YELLOW}� Next Step: Run your Bicep deployment${NC}"
+echo -e "${CYAN}   Basic deployment (password authentication):${NC}"
+echo -e "${GRAY}az deployment group create --resource-group \"$RESOURCE_GROUP_NAME\" --template-file \"infra/main.bicep\" --parameters \"$PARAMETERS_FILE\"${NC}"
+echo ""
+echo -e "${CYAN}   With SSH key (password + SSH authentication):${NC}"
+echo -e "${GRAY}\$sshKey = Get-Content \"\$env:USERPROFILE\\.ssh\\id_rsa.pub\" -Raw${NC}"
+echo -e "${GRAY}az deployment group create --resource-group \"$RESOURCE_GROUP_NAME\" --template-file \"infra/main.bicep\" --parameters \"$PARAMETERS_FILE\" --parameters sshPublicKey=\"\$sshKey\"${NC}"
 echo ""

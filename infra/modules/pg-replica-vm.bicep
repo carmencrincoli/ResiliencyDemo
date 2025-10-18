@@ -251,6 +251,3 @@ output connectionInfo object = {
 
 @description('Assigned IP address of the PostgreSQL replica VM')
 output assignedIP string = staticIP
-
-@description('Principal ID of the VM managed identity')
-output principalId string = hybridComputeMachine.identity.principalId

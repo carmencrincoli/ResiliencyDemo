@@ -52,7 +52,6 @@ if ($paramContent -match "param scriptStorageAccount = '([^']*)'") {
 
 # Determine if we need to create a new storage account or use existing
 $createNewAccount = $false
-$storageAccountExists = $false
 
 if ($null -eq $storageAccountName) {
     # Generate a new unique storage account name
@@ -62,12 +61,11 @@ if ($null -eq $storageAccountName) {
     $createNewAccount = $true
 } else {
     # Check if storage account exists in the resource group
-    Write-Host "  � Checking if storage account exists in resource group..." -ForegroundColor Yellow
-    
-    $accountCheck = az storage account show --name $storageAccountName --resource-group $ResourceGroupName 2>$null
+    Write-Host "  🔍 Checking if storage account exists in resource group..." -ForegroundColor Yellow
+
+    az storage account show --name $storageAccountName --resource-group $ResourceGroupName 2>$null
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  ✅ Storage account '$storageAccountName' exists in resource group" -ForegroundColor Green
-        $storageAccountExists = $true
     } else {
         Write-Host "  ℹ️  Storage account does not exist in resource group" -ForegroundColor Cyan
         
@@ -119,7 +117,7 @@ Write-Host "🔍 Checking if resource group exists..." -ForegroundColor Yellow
 $rgExists = az group exists --name $ResourceGroupName 2>$null
 if ($rgExists -eq "false") {
     Write-Host "📁 Creating resource group: $ResourceGroupName" -ForegroundColor Yellow
-    az group create --name $ResourceGroupName --location $Location
+    az group create --name $ResourceGroupName --location $Location --output none 2>$null
     if ($LASTEXITCODE -ne 0) {
         Write-Error "❌ Failed to create resource group"
         exit 1
@@ -142,19 +140,42 @@ if ($createNewAccount) {
         --access-tier Hot `
         --allow-blob-public-access false `
         --min-tls-version TLS1_2 `
-        --https-only true
+        --https-only true `
+        --output none 2>$null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "❌ Failed to create storage account"
         exit 1
     }
 
-    Write-Host "✅ Storage account created successfully with secure access" -ForegroundColor Green
-    Write-Host "🔒 Anonymous blob access is DISABLED - VMs will use storage account key" -ForegroundColor Green
+    Write-Host "✅ Storage account created successfully" -ForegroundColor Green
 
-    # Wait for storage account to be fully ready
+    # Wait for storage account to be fully ready by polling provisioning state
     Write-Host "⏳ Waiting for storage account to be fully provisioned..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 10
+    $maxAttempts = 30
+    $attempt = 0
+    $provisioningState = ""
+    
+    while ($attempt -lt $maxAttempts) {
+        $attempt++
+        $provisioningState = az storage account show `
+            --name $storageAccountName `
+            --resource-group $ResourceGroupName `
+            --query "provisioningState" -o tsv 2>$null
+        
+        if ($provisioningState -eq "Succeeded") {
+            Write-Host "✅ Storage account is fully provisioned and ready" -ForegroundColor Green
+            break
+        }
+        
+        Write-Host "  ⏳ Provisioning state: $provisioningState (attempt $attempt/$maxAttempts)" -ForegroundColor Gray
+        Start-Sleep -Seconds 2
+    }
+    
+    if ($provisioningState -ne "Succeeded") {
+        Write-Error "❌ Storage account provisioning did not complete in expected time (state: $provisioningState)"
+        exit 1
+    }
 } else {
     Write-Host "♻️  Using existing storage account: $storageAccountName" -ForegroundColor Green
     
@@ -199,7 +220,8 @@ if ($containerExists -eq "true") {
         --name $ContainerName `
         --account-name $storageAccountName `
         --account-key $storageKey `
-        --public-access off
+        --public-access off `
+        --output none 2>$null
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "❌ Failed to create container"
@@ -345,30 +367,6 @@ try {
     }
 }
 
-# Get list of uploaded assets for verification
-$uploadedAssets = @()
-$blobList = az storage blob list --account-name $storageAccountName --account-key $storageKey --container-name $ContainerName --query "[].name" -o tsv
-if ($blobList) {
-    $uploadedAssets = $blobList -split "`n" | Where-Object { $_ -ne "" }
-}
-
-# Verify uploads
-Write-Host "🔍 Verifying uploaded scripts..." -ForegroundColor Yellow
-Write-Host ""
-az storage blob list --account-name $storageAccountName --account-key $storageKey --container-name $ContainerName --output table
-Write-Host ""
-
-# Get storage endpoint for URLs
-$storageEndpoint = az storage account show --name $storageAccountName --resource-group $ResourceGroupName --query primaryEndpoints.blob -o tsv
-
-# Display asset URLs
-Write-Host "🌐 Asset URLs (publicly accessible):" -ForegroundColor Green
-foreach ($asset in $uploadedAssets) {
-    $url = "${storageEndpoint}${ContainerName}/$asset"
-    Write-Host "  📄 $asset`: $url" -ForegroundColor Cyan
-}
-Write-Host ""
-
 # Update main.bicepparam file
 Write-Host "📝 Updating parameters file: $ParametersFile" -ForegroundColor Yellow
 
@@ -419,54 +417,22 @@ if ($parameterUpdated) {
 }
 Write-Host ""
 
-# Verify secure access configuration
-Write-Host "🔒 Verifying secure access configuration..." -ForegroundColor Yellow
-$testAsset = $uploadedAssets | Where-Object { $_ -like "*database*" -or $_ -like "*.sh" } | Select-Object -First 1
-if ($testAsset) {
-    $testUrl = "${storageEndpoint}${ContainerName}/$testAsset"
-    Write-Host "  🔗 Test URL: $testUrl" -ForegroundColor Cyan
-    
-    try {
-        $response = Invoke-WebRequest -Uri $testUrl -Method Head -UseBasicParsing -ErrorAction Stop
-        if ($response.StatusCode -eq 200) {
-            Write-Warning "  ⚠️  WARNING: Assets are still publicly accessible!" -ForegroundColor Red
-            Write-Host "  🔧 Please check storage account and container security settings." -ForegroundColor Yellow
-        }
-    } catch {
-        # Expected: Assets should NOT be publicly accessible
-        if ($_.Exception.Message -like "*403*" -or $_.Exception.Message -like "*404*" -or $_.Exception.Message -like "*409*") {
-            Write-Host "  ✅ SECURE: Assets are NOT publicly accessible (expected)" -ForegroundColor Green
-            Write-Host "  ℹ️  VMs will use storage account key to access files" -ForegroundColor Cyan
-        } else {
-            Write-Warning "  ⚠️  Unexpected error: $($_.Exception.Message)"
-        }
-    }
-} else {
-    Write-Warning "  ⚠️  No assets available to test accessibility"
-}
-Write-Host ""
-
 # Summary
 Write-Host "🎉 Step 1 Complete! Storage Account Setup and Asset Upload Successful" -ForegroundColor Green
 Write-Host ""
 Write-Host "📋 Summary:" -ForegroundColor White
 Write-Host "  💾 Storage Account: $storageAccountName" -ForegroundColor Cyan
 Write-Host "  📦 Container: $ContainerName" -ForegroundColor Cyan
-Write-Host "  🔒 Access Model: Storage Account Key (Secure)" -ForegroundColor Green
 Write-Host "  🚫 Anonymous Access: DISABLED" -ForegroundColor Green
-Write-Host "  �📄 Assets Uploaded: $($uploadedAssets.Count)" -ForegroundColor Cyan
-Write-Host "  🗜️  Compressed archives: Created .tar.gz files from \assets\archives subfolders" -ForegroundColor Cyan
-Write-Host "  📋 Other assets: Uploaded all files from \assets EXCEPT the \archives directory" -ForegroundColor Cyan
-Write-Host "  🚫 Excluded: \assets\archives directory (only compressed versions uploaded)" -ForegroundColor Yellow
+Write-Host "  📄 Assets Uploaded: $($uploadedAssets.Count)" -ForegroundColor Cyan
 Write-Host "  ✅ All assets processed and uploaded successfully!" -ForegroundColor Green
-
 Write-Host "  📝 Parameters File Updated: $ParametersFile" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "🚀 Next Step: Run your Bicep deployment" -ForegroundColor Yellow
 Write-Host "   Basic deployment (password authentication):" -ForegroundColor Cyan
-Write-Host "   az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`"" -ForegroundColor Gray
+Write-Host "az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`"" -ForegroundColor Gray
 Write-Host ""
 Write-Host "   With SSH key (password + SSH authentication):" -ForegroundColor Cyan
-Write-Host "   `$sshKey = Get-Content `"`$env:USERPROFILE\.ssh\id_rsa.pub`" -Raw" -ForegroundColor Gray
-Write-Host "   az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`" --parameters sshPublicKey=`"`$sshKey`"" -ForegroundColor Gray
+Write-Host "`$sshKey = Get-Content `"`$env:USERPROFILE\.ssh\id_rsa.pub`" -Raw" -ForegroundColor Gray
+Write-Host "az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`" --parameters sshPublicKey=`"`$sshKey`"" -ForegroundColor Gray
 Write-Host ""

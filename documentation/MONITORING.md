@@ -487,8 +487,8 @@ az vm extension list --resource-group <rg-name> --vm-name <vm-name>
 **Solutions:**
 
 **If script download failed:**
-- Verify storage account has public access or valid SAS token
-- Check VM has internet connectivity
+- Verify storage account key is correctly configured in Bicep parameters
+- Check VM has internet connectivity and can reach Azure Storage
 
 **If script execution failed:**
 ```bash
