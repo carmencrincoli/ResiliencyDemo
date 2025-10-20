@@ -68,8 +68,8 @@ param webappConfig object = {
 // Generate resource names
 var nicName = '${vmName}-nic'
 var customLocationId = vmConfig.customLocationId
-var logicalNetworkId = resourceId(vmConfig.azureLocalResourceGroup, 'Microsoft.AzureStackHCI/logicalnetworks', vmConfig.logicalNetworkName)
-var imageId = resourceId(vmConfig.azureLocalResourceGroup, 'Microsoft.AzureStackHCI/galleryImages', vmConfig.imageName)
+var logicalNetworkId = vmConfig.logicalNetworkId
+var imageId = vmConfig.imageId
 
 // Web application environment variables for setup scripts
 var webappEnvironment = {

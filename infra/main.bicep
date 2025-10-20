@@ -10,13 +10,10 @@ param projectName string = 'ecommerce'
 param location string = resourceGroup().location
 
 @description('Full resource ID of the Azure Local custom location (e.g., /subscriptions/.../resourceGroups/.../providers/Microsoft.ExtendedLocation/customLocations/...)')
-param customLocationName string
+param customLocationId string
 
-@description('Name of the Azure Local logical network')
-param logicalNetworkName string
-
-@description('Resource group name where the custom location and logical network are located')
-param azureLocalResourceGroup string
+@description('Full resource ID of the Azure Local logical network (e.g., /subscriptions/.../resourceGroups/.../providers/Microsoft.AzureStackHCI/logicalnetworks/...)')
+param logicalNetworkId string
 
 @description('VM administrator username')
 param adminUsername string
@@ -33,8 +30,8 @@ param sshPublicKey string = ''
 @secure()
 param servicePassword string
 
-@description('VM image name for Ubuntu 22.04 (used for all VMs)')
-param vmImageName string
+@description('Full resource ID of the VM image for Ubuntu 22.04 (e.g., /subscriptions/.../resourceGroups/.../providers/Microsoft.AzureStackHCI/galleryImages/...)')
+param vmImageId string
 
 @description('Name of the pre-created storage account containing deployment scripts')
 param scriptStorageAccount string
@@ -63,10 +60,9 @@ var resourceToken = substring(uniqueString(resourceGroup().id, deployment().name
 var vmConfig = {
   size: 'Custom'
   adminUsername: adminUsername
-  imageName: vmImageName
-  customLocationId: customLocationName
-  logicalNetworkName: logicalNetworkName
-  azureLocalResourceGroup: azureLocalResourceGroup
+  imageId: vmImageId
+  customLocationId: customLocationId
+  logicalNetworkId: logicalNetworkId
 }
 
 @description('VM resource allocations optimized for demo environment with minimal resource usage')
