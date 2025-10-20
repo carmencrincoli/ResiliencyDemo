@@ -50,6 +50,9 @@ param adminPassword string
 @secure()
 param sshPublicKey string = ''
 
+@description('Custom DNS servers for the VM (optional - leave empty to use LNET defaults)')
+param dnsServers array = []
+
 @description('Number of processors for the VM')
 param processors int
 
@@ -115,6 +118,9 @@ resource networkInterface 'Microsoft.AzureStackHCI/networkInterfaces@2024-01-01'
         }
       }
     ]
+    dnsSettings: !empty(dnsServers) ? {
+      dnsServers: dnsServers
+    } : null
   }
 }
 

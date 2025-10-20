@@ -22,12 +22,9 @@ param staticIPs = {
   webapp2: '192.168.x.24'
 }
 
-// Admin credentials - CHANGE THESE VALUES!
-param adminUsername = 'azureuser'
-param adminPassword = 'ChangeThisPassword123!' // REQUIRED - Change this to a secure password
-
-// Service credentials - CHANGE THIS VALUE!
-param servicePassword = 'ChangeThisServicePassword123!' // Used for database and other services
+// DNS configuration (OPTIONAL) - Configure custom DNS servers for VMs
+// Leave empty to use DNS servers from the Logical Network (LNET)
+param dnsServers = [''] // Example: Azure DNS - param dnsServers = ['168.63.129.16']
 
 // Proxy configuration (OPTIONAL) - Configure if VMs need to access internet through a proxy
 // Leave these empty to disable proxy configuration
@@ -35,6 +32,14 @@ param httpProxy = '' // Example: 'http://proxy.example.com:3128'
 param httpsProxy = '' // Example: 'http://proxy.example.com:3128'
 param noProxy = 'localhost,127.0.0.1,.svc,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.0.0.0/8'
 param proxyCertificate = '' // Certificate content or file path for proxy authentication
+
+
+// Admin credentials - CHANGE THESE VALUES!
+param adminUsername = 'azureuser'
+param adminPassword = 'ChangeThisPassword123!' // REQUIRED - Change this to a secure password
+
+// Service credentials - CHANGE THIS VALUE!
+param servicePassword = 'ChangeThisServicePassword123!' // Used for database and other services
 
 // SSH Authentication (OPTIONAL) - Adds SSH key authentication IN ADDITION to password
 // Uncomment and update the path to your public key file:

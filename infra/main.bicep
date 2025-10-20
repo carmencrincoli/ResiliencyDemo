@@ -53,6 +53,9 @@ param noProxy string = 'localhost,127.0.0.1,.svc,10.0.0.0/8,172.16.0.0/12,192.16
 @description('Certificate file path or content for proxy authentication (optional)')
 param proxyCertificate string = ''
 
+@description('Custom DNS servers for VMs (optional - leave empty to use LNET defaults)')
+param dnsServers array = []
+
 @description('Resource token for unique naming - combines multiple entropy sources for better randomization')
 var resourceToken = substring(uniqueString(resourceGroup().id, deployment().name, timestamp), 0, 6)
 
@@ -145,6 +148,7 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
+    dnsServers: dnsServers
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
   }
@@ -170,6 +174,7 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
+    dnsServers: dnsServers
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
   }
@@ -194,6 +199,7 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     servicePassword: servicePassword
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
+    dnsServers: dnsServers
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
   }
@@ -218,6 +224,7 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     storageAccountKey: storageAccountKey
     adminPassword: adminPassword
     sshPublicKey: sshPublicKey
+    dnsServers: dnsServers
     processors: vmResources.loadBalancer.processors
     memoryMB: vmResources.loadBalancer.memoryMB
   }
