@@ -41,6 +41,49 @@ The application consists of 5 virtual machines deployed on Azure Local:
 | **PostgreSQL Primary** | 1 | Primary database (read/write) | 4 vCPU, 8GB RAM |
 | **PostgreSQL Replica** | 1 | Standby database (read-only) | 4 vCPU, 8GB RAM |
 
+### Availability Zone Distribution
+
+The deployment leverages Azure Local availability zones to ensure high availability and fault tolerance by distributing VMs across multiple zones. This configuration protects against zone-level failures.
+
+**Default Zone Assignments:**
+
+| VM | Zone | Rationale |
+|----|------|-----------|
+| **PostgreSQL Primary** | Zone 1 | Primary database in zone 1 |
+| **PostgreSQL Replica** | Zone 2 | Replica in separate zone for database HA |
+| **Web App 1** | Zone 1 | First web server in zone 1 |
+| **Web App 2** | Zone 2 | Second web server in separate zone for application HA |
+| **Load Balancer** | Zone 1 | Load balancer can route to web apps in any zone |
+
+**Key Benefits:**
+- **Database High Availability**: Primary and replica databases are in different zones, ensuring database availability even if one zone fails
+- **Application Redundancy**: Web application servers are distributed across zones, providing continuous service during zone outages
+- **Automatic Failover**: If a zone becomes unavailable, the application can continue serving traffic from VMs in the remaining zone(s)
+
+**Configuration:**
+
+Zone assignments are defined in the `placementZones` parameter in your `.bicepparam` file:
+
+```bicep
+param placementZones = {
+  dbPrimary: '1'      // Database primary in zone 1
+  dbReplica: '2'      // Database replica in zone 2
+  webapp1: '1'        // Web app 1 in zone 1
+  webapp2: '2'        // Web app 2 in zone 2
+  loadBalancer: '1'   // Load balancer in zone 1
+}
+```
+
+**Customization:**
+- Zone values can be '1', '2', '3', or other zones supported by your Azure Local instance
+- Set zone to empty string `''` to disable zone placement for a specific VM
+- `strictPlacementPolicy: true` ensures VMs remain in their designated zones (no automatic failover to other zones)
+
+**Requirements:**
+- Azure Local instance must support availability zones
+- VMs use the `Microsoft.AzureStackHCI/virtualMachineInstances` API version `2025-04-01-preview` or later
+- The `placementProfile` property controls zone placement with `zone` and `strictPlacementPolicy` settings
+
 ## 🚀 Application Stack
 
 ### Frontend & Backend: Next.js 14 Full-Stack Application

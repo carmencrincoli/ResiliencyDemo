@@ -179,6 +179,16 @@ param staticIPs = {
   webapp2: '192.168.x.115'
 }
 
+// Availability zone assignments for VM placement
+// Distributes VMs across zones for high availability
+param placementZones = {
+  dbPrimary: '1'      // Database primary in zone 1
+  dbReplica: '2'      // Database replica in zone 2
+  webapp1: '1'        // Web app 1 in zone 1
+  webapp2: '2'        // Web app 2 in zone 2
+  loadBalancer: '1'   // Load balancer in zone 1
+}
+
 // Admin credentials - CHANGE THESE VALUES!
 param adminUsername = 'azureuser'
 param adminPassword = 'YourSecurePassword!' // Change this to a secure password
@@ -312,6 +322,70 @@ module.exports = {
   }]
 };
 ```
+
+### Availability Zone Configuration
+
+**Overview:**
+The deployment supports availability zone placement to enhance high availability and fault tolerance. VMs are distributed across zones to protect against zone-level failures.
+
+**Configuration Location:**
+Zone assignments are defined in the `placementZones` parameter in your `.bicepparam` file:
+
+```bicep
+param placementZones = {
+  dbPrimary: '1'      // Database primary in zone 1
+  dbReplica: '2'      // Database replica in zone 2
+  webapp1: '1'        // Web app 1 in zone 1
+  webapp2: '2'        // Web app 2 in zone 2
+  loadBalancer: '1'   // Load balancer in zone 1
+}
+```
+
+**Customization Options:**
+
+1. **Use different zones**: Change zone numbers to match your Azure Local instance's available zones (e.g., '1', '2', '3')
+   ```bicep
+   param placementZones = {
+     dbPrimary: '1'
+     dbReplica: '3'      // Use zone 3 instead of zone 2
+     webapp1: '2'
+     webapp2: '3'
+     loadBalancer: '1'
+   }
+   ```
+
+2. **Disable zone placement for specific VMs**: Set zone to empty string `''`
+   ```bicep
+   param placementZones = {
+     dbPrimary: '1'
+     dbReplica: '2'
+     webapp1: ''         // No zone placement
+     webapp2: ''         // No zone placement
+     loadBalancer: '1'
+   }
+   ```
+
+3. **Disable all zone placement**: Set all zones to empty strings
+   ```bicep
+   param placementZones = {
+     dbPrimary: ''
+     dbReplica: ''
+     webapp1: ''
+     webapp2: ''
+     loadBalancer: ''
+   }
+   ```
+
+**Best Practices:**
+- Keep database primary and replica in different zones for maximum database availability
+- Distribute web application VMs across zones for application redundancy
+- Consider network latency when selecting zones for tightly-coupled components
+- The `strictPlacementPolicy: true` setting prevents VMs from being moved to other zones automatically
+
+**Requirements:**
+- Azure Local instance must support availability zones
+- Uses API version `2025-04-01-preview` for the `Microsoft.AzureStackHCI/virtualMachineInstances` resource type
+- Verify available zones with your Azure Local administrator before configuring
 
 ### Resource Allocation
 

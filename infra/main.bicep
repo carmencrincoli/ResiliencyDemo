@@ -96,6 +96,15 @@ var vmNames = {
 @description('Static IP assignments for all VMs')
 param staticIPs object
 
+@description('Availability zone assignments for VMs (zone 1 and zone 2 distribution)')
+param placementZones object = {
+  dbPrimary: '1'      // PostgreSQL Primary in zone 1
+  dbReplica: '2'      // PostgreSQL Replica in zone 2 (separate from primary)
+  webapp1: '1'        // Web App 01 in zone 1
+  webapp2: '2'        // Web App 02 in zone 2 (separate from webapp1)
+  loadBalancer: '1'   // Load Balancer in zone 1
+}
+
 // Reference to existing storage account created in Step 1
 resource existingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
   name: scriptStorageAccount
@@ -126,6 +135,7 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
     sshPublicKey: sshPublicKey
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
+    placementZone: placementZones.dbPrimary
   }
 }
 
@@ -151,6 +161,7 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     dnsServers: dnsServers
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
+    placementZone: placementZones.dbReplica
   }
 }
 
@@ -177,6 +188,7 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     dnsServers: dnsServers
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
+    placementZone: placementZones.webapp1
   }
 }
 
@@ -202,6 +214,7 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     dnsServers: dnsServers
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
+    placementZone: placementZones.webapp2
   }
 }
 
@@ -227,6 +240,7 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     dnsServers: dnsServers
     processors: vmResources.loadBalancer.processors
     memoryMB: vmResources.loadBalancer.memoryMB
+    placementZone: placementZones.loadBalancer
   }
 }
 

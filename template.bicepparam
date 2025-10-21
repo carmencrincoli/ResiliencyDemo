@@ -22,6 +22,17 @@ param staticIPs = {
   webapp2: '192.168.x.24'
 }
 
+// Availability zone assignments for VM placement
+// Distributes VMs across zones for high availability
+// Leave zone value as empty string '' to disable zone placement for a specific VM
+param placementZones = {
+  dbPrimary: '1'    // Database primary in zone 1
+  dbReplica: '2'    // Database replica in zone 2
+  webapp1: '1'      // Web app 1 in zone 1
+  webapp2: '2'      // Web app 2 in zone 2
+  loadBalancer: '3' // Load balancer in zone 3
+}
+
 // DNS configuration (OPTIONAL) - Configure custom DNS servers for VMs
 // Leave empty to use DNS servers from the Logical Network (LNET)
 param dnsServers = [''] // Example: Azure DNS - param dnsServers = ['168.63.129.16']

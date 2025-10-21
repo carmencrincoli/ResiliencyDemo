@@ -59,6 +59,9 @@ param processors int
 @description('Memory in MB for the VM')
 param memoryMB int
 
+@description('Placement zone for the VM (optional - for distributing VMs across availability zones)')
+param placementZone string = ''
+
 // Generate resource names
 var nicName = '${vmName}-nic'
 var customLocationId = vmConfig.customLocationId
@@ -128,7 +131,7 @@ resource networkInterface 'Microsoft.AzureStackHCI/networkInterfaces@2024-01-01'
 }
 
 // Create the virtual machine instance
-resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01-01' = {
+resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2025-04-01-preview' = {
   name: 'default'
   properties: {
     hardwareProfile: {
@@ -159,6 +162,11 @@ resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01
         id: imageId
       }
     }
+    // Placement profile for availability zone assignment
+    placementProfile: !empty(placementZone) ? {
+      zone: placementZone
+      strictPlacementPolicy: true
+    } : null
     // HTTP/HTTPS proxy configuration for the VM
     httpProxyConfig: !empty(httpProxy) || !empty(httpsProxy) ? {
       httpProxy: !empty(httpProxy) ? httpProxy : null
