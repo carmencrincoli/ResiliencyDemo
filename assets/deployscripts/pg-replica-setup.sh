@@ -32,6 +32,9 @@ echo "export PRIMARY_IP=\"$PRIMARY_IP\"" >> "$EXPORT_LOG"
 echo "export STORAGE_ACCOUNT_URL=\"$STORAGE_ACCOUNT_URL\"" >> "$EXPORT_LOG"
 echo "export STORAGE_ACCOUNT_NAME=\"$STORAGE_ACCOUNT_NAME\"" >> "$EXPORT_LOG"
 echo "export STORAGE_ACCOUNT_KEY=\"$STORAGE_ACCOUNT_KEY\"" >> "$EXPORT_LOG"
+echo "export HTTP_PROXY=\"$HTTP_PROXY\"" >> "$EXPORT_LOG"
+echo "export HTTPS_PROXY=\"$HTTPS_PROXY\"" >> "$EXPORT_LOG"
+echo "export NO_PROXY=\"$NO_PROXY\"" >> "$EXPORT_LOG"
 echo "" >> "$EXPORT_LOG"
 echo "# End of exports" >> "$EXPORT_LOG"
 
@@ -104,6 +107,53 @@ if id ubuntu &>/dev/null && command -v usermod &>/dev/null; then
 fi
 
 log "System preparation and shell configuration completed"
+
+# ==============================================================================
+# PROXY CONFIGURATION
+# ==============================================================================
+log "Configuring proxy settings..."
+
+# Get proxy environment variables from Bicep deployment
+HTTP_PROXY="${HTTP_PROXY:-}"
+HTTPS_PROXY="${HTTPS_PROXY:-}"
+NO_PROXY="${NO_PROXY:-localhost,127.0.0.1}"
+
+# Configure system-wide proxy if proxy values are provided
+if [ -n "$HTTP_PROXY" ] || [ -n "$HTTPS_PROXY" ]; then
+    log "Proxy configuration detected - setting up system-wide proxy settings"
+    
+    # Configure environment-wide proxy in /etc/environment
+    log "Configuring /etc/environment for system-wide proxy..."
+    {
+        echo "# Proxy configuration added by deployment script"
+        [ -n "$HTTP_PROXY" ] && echo "http_proxy=\"$HTTP_PROXY\""
+        [ -n "$HTTP_PROXY" ] && echo "HTTP_PROXY=\"$HTTP_PROXY\""
+        [ -n "$HTTPS_PROXY" ] && echo "https_proxy=\"$HTTPS_PROXY\""
+        [ -n "$HTTPS_PROXY" ] && echo "HTTPS_PROXY=\"$HTTPS_PROXY\""
+        [ -n "$NO_PROXY" ] && echo "no_proxy=\"$NO_PROXY\""
+        [ -n "$NO_PROXY" ] && echo "NO_PROXY=\"$NO_PROXY\""
+    } >> /etc/environment
+    
+    # Export proxy for current session
+    [ -n "$HTTP_PROXY" ] && export http_proxy="$HTTP_PROXY"
+    [ -n "$HTTP_PROXY" ] && export HTTP_PROXY="$HTTP_PROXY"
+    [ -n "$HTTPS_PROXY" ] && export https_proxy="$HTTPS_PROXY"
+    [ -n "$HTTPS_PROXY" ] && export HTTPS_PROXY="$HTTPS_PROXY"
+    [ -n "$NO_PROXY" ] && export no_proxy="$NO_PROXY"
+    [ -n "$NO_PROXY" ] && export NO_PROXY="$NO_PROXY"
+    
+    # Configure APT proxy
+    log "Configuring APT to use proxy..."
+    cat > /etc/apt/apt.conf.d/95proxies << EOF
+# Proxy configuration for APT
+Acquire::http::Proxy "$HTTP_PROXY";
+Acquire::https::Proxy "$HTTPS_PROXY";
+EOF
+    
+    log "Proxy configuration completed: HTTP_PROXY=$HTTP_PROXY, HTTPS_PROXY=$HTTPS_PROXY, NO_PROXY=$NO_PROXY"
+else
+    log "No proxy configuration provided - skipping proxy setup"
+fi
 
 # ==============================================================================
 # MAIN DEPLOYMENT SECTION

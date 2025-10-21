@@ -87,6 +87,9 @@ var webappEnvironment = {
   STORAGE_ACCOUNT_URL: storageAccountUrl
   STORAGE_ACCOUNT_NAME: storageAccountName
   STORAGE_ACCOUNT_KEY: storageAccountKey
+  HTTP_PROXY: httpProxy
+  HTTPS_PROXY: httpsProxy
+  NO_PROXY: noProxy
 }
 
 // Convert environment variables to export commands for shell
@@ -187,29 +190,11 @@ resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01
   scope: hybridComputeMachine
 }
 
-// Azure AD SSH Login Extension for Entra ID authentication
-resource aadSSHLoginExtension 'Microsoft.HybridCompute/machines/extensions@2023-10-03-preview' = {
-  parent: hybridComputeMachine
-  name: 'AADSSHLoginForLinux'
-  location: location
-  properties: {
-    publisher: 'Microsoft.Azure.ActiveDirectory'
-    type: 'AADSSHLoginForLinux'
-    typeHandlerVersion: '1.0'
-    autoUpgradeMinorVersion: true
-    settings: {}
-    protectedSettings: {}
-  }
-  dependsOn: [
-    virtualMachine
-  ]
-}
-
 // Combined setup command using storage account key for authentication
 // Combined setup command using storage account key for authentication
-var combinedSetupCommand = 'echo "=== Phase 1: Installing Azure CLI ===" && curl -sL https://aka.ms/InstallAzureCLIDeb | bash && echo "=== Phase 2: Downloading Setup Script ===" && az storage blob download --account-name ${storageAccountName} --account-key "${storageAccountKey}" --container-name assets --name deployscripts/webapp-setup.sh --file /tmp/webapp-setup.sh && chmod +x /tmp/webapp-setup.sh && sed -i "s/\r$//" /tmp/webapp-setup.sh && echo "=== Phase 3: Setting up Web Application ===" && ${envExports} && /bin/bash /tmp/webapp-setup.sh && echo "=== All phases completed successfully ==="'
+var combinedSetupCommand = '${envExports} && echo "=== Phase 0: Configuring APT and Service Proxies ===" && if [ -n "$HTTP_PROXY" ]; then echo "Acquire::http::Proxy \\"$HTTP_PROXY\\";" > /etc/apt/apt.conf.d/95proxies && echo "Acquire::https::Proxy \\"$HTTPS_PROXY\\";" >> /etc/apt/apt.conf.d/95proxies && mkdir -p /etc/systemd/system/extd.service.d && printf "[Service]\\nEnvironment=\\"HTTP_PROXY=%s\\"\\nEnvironment=\\"HTTPS_PROXY=%s\\"\\nEnvironment=\\"NO_PROXY=%s\\"\\n" "$HTTP_PROXY" "$HTTPS_PROXY" "$NO_PROXY" > /etc/systemd/system/extd.service.d/http-proxy.conf && systemctl daemon-reload && systemctl restart extd; fi && echo "=== Phase 1: Installing Azure CLI ===" && curl -sL https://aka.ms/InstallAzureCLIDeb | bash && echo "=== Phase 2: Downloading Setup Script ===" && az storage blob download --account-name ${storageAccountName} --account-key "${storageAccountKey}" --container-name assets --name deployscripts/webapp-setup.sh --file /tmp/webapp-setup.sh && chmod +x /tmp/webapp-setup.sh && sed -i "s/\r$//" /tmp/webapp-setup.sh && echo "=== Phase 3: Setting up Web Application ===" && /bin/bash /tmp/webapp-setup.sh && echo "=== All phases completed successfully ==="'
 
-// Web application setup extension
+// Web application setup extension - runs first
 resource webappSetupExtension 'Microsoft.HybridCompute/machines/extensions@2023-10-03-preview' = {
   parent: hybridComputeMachine
   name: 'webapp-setup'
@@ -226,7 +211,25 @@ resource webappSetupExtension 'Microsoft.HybridCompute/machines/extensions@2023-
   }
   dependsOn: [
     virtualMachine
-    aadSSHLoginExtension
+  ]
+}
+
+// Azure AD SSH Login Extension for Entra ID authentication
+// Runs AFTER setup scripts complete
+resource aadSSHLoginExtension 'Microsoft.HybridCompute/machines/extensions@2023-10-03-preview' = {
+  parent: hybridComputeMachine
+  name: 'AADSSHLoginForLinux'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.ActiveDirectory'
+    type: 'AADSSHLoginForLinux'
+    typeHandlerVersion: '1.0'
+    autoUpgradeMinorVersion: true
+    settings: {}
+    protectedSettings: {}
+  }
+  dependsOn: [
+    webappSetupExtension
   ]
 }
 
@@ -239,7 +242,7 @@ module sshConfiguration 'ssh-config.bicep' = {
   }
   dependsOn: [
     hybridComputeMachine
-    aadSSHLoginExtension
+    webappSetupExtension
   ]
 }
 

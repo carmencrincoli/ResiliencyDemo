@@ -83,6 +83,9 @@ var databaseEnvironment = {
   STORAGE_ACCOUNT_URL: storageAccountUrl
   STORAGE_ACCOUNT_NAME: storageAccountName
   STORAGE_ACCOUNT_KEY: storageAccountKey
+  HTTP_PROXY: httpProxy
+  HTTPS_PROXY: httpsProxy
+  NO_PROXY: noProxy
 }
 
 // Convert environment variables to export commands for shell
@@ -183,42 +186,11 @@ resource virtualMachine 'Microsoft.AzureStackHCI/virtualMachineInstances@2024-01
   scope: hybridComputeMachine
 }
 
-// Azure AD SSH Login Extension for Entra ID authentication
-resource aadSSHLoginExtension 'Microsoft.HybridCompute/machines/extensions@2023-10-03-preview' = {
-  parent: hybridComputeMachine
-  name: 'AADSSHLoginForLinux'
-  location: location
-  properties: {
-    publisher: 'Microsoft.Azure.ActiveDirectory'
-    type: 'AADSSHLoginForLinux'
-    typeHandlerVersion: '1.0'
-    autoUpgradeMinorVersion: true
-    settings: {}
-    protectedSettings: {}
-  }
-  dependsOn: [
-    virtualMachine
-  ]
-}
-
-// Enable SSH access for Arc-enabled server (immediately after AAD SSH extension)
-module sshConfiguration 'ssh-config.bicep' = {
-  name: '${vmName}-ssh-config'
-  params: {
-    machineName: vmName
-    sshPort: 22
-  }
-  dependsOn: [
-    hybridComputeMachine
-    aadSSHLoginExtension
-  ]
-}
-
 // Combined setup command using storage account key for authentication
 // Combined setup command using storage account key for authentication
-var combinedSetupCommand = 'echo "=== Phase 1: Installing Azure CLI ===" && curl -sL https://aka.ms/InstallAzureCLIDeb | bash && echo "=== Phase 2: Downloading Setup Script ===" && az storage blob download --account-name ${storageAccountName} --account-key "${storageAccountKey}" --container-name assets --name deployscripts/pg-primary-setup.sh --file /tmp/pg-primary-setup.sh && chmod +x /tmp/pg-primary-setup.sh && sed -i "s/\r$//" /tmp/pg-primary-setup.sh && echo "=== Phase 3: Setting up PostgreSQL Primary ===" && ${envExports} && /bin/bash /tmp/pg-primary-setup.sh && echo "=== All phases completed successfully ==="'
+var combinedSetupCommand = '${envExports} && echo "=== Phase 0: Configuring APT and Service Proxies ===" && if [ -n "$HTTP_PROXY" ]; then echo "Acquire::http::Proxy \\"$HTTP_PROXY\\";" > /etc/apt/apt.conf.d/95proxies && echo "Acquire::https::Proxy \\"$HTTPS_PROXY\\";" >> /etc/apt/apt.conf.d/95proxies && mkdir -p /etc/systemd/system/extd.service.d && printf "[Service]\\nEnvironment=\\"HTTP_PROXY=%s\\"\\nEnvironment=\\"HTTPS_PROXY=%s\\"\\nEnvironment=\\"NO_PROXY=%s\\"\\n" "$HTTP_PROXY" "$HTTPS_PROXY" "$NO_PROXY" > /etc/systemd/system/extd.service.d/http-proxy.conf && systemctl daemon-reload && systemctl restart extd; fi && echo "=== Phase 1: Installing Azure CLI ===" && curl -sL https://aka.ms/InstallAzureCLIDeb | bash && echo "=== Phase 2: Downloading Setup Script ===" && az storage blob download --account-name ${storageAccountName} --account-key "${storageAccountKey}" --container-name assets --name deployscripts/pg-primary-setup.sh --file /tmp/pg-primary-setup.sh && chmod +x /tmp/pg-primary-setup.sh && sed -i "s/\r$//" /tmp/pg-primary-setup.sh && echo "=== Phase 3: Setting up PostgreSQL Primary ===" && /bin/bash /tmp/pg-primary-setup.sh && echo "=== All phases completed successfully ==="'
 
-// PostgreSQL primary setup extension (depends on bash installer module)
+// PostgreSQL primary setup extension - runs first
 resource postgresqlPrimarySetupExtension 'Microsoft.HybridCompute/machines/extensions@2023-10-03-preview' = {
   parent: hybridComputeMachine
   name: 'postgresql-primary-setup'
@@ -235,7 +207,38 @@ resource postgresqlPrimarySetupExtension 'Microsoft.HybridCompute/machines/exten
   }
   dependsOn: [
     virtualMachine
-    aadSSHLoginExtension
+  ]
+}
+
+// Azure AD SSH Login Extension for Entra ID authentication
+// Runs AFTER setup scripts complete
+resource aadSSHLoginExtension 'Microsoft.HybridCompute/machines/extensions@2023-10-03-preview' = {
+  parent: hybridComputeMachine
+  name: 'AADSSHLoginForLinux'
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.ActiveDirectory'
+    type: 'AADSSHLoginForLinux'
+    typeHandlerVersion: '1.0'
+    autoUpgradeMinorVersion: true
+    settings: {}
+    protectedSettings: {}
+  }
+  dependsOn: [
+    postgresqlPrimarySetupExtension
+  ]
+}
+
+// Enable SSH access for Arc-enabled server (immediately after AAD SSH extension)
+module sshConfiguration 'ssh-config.bicep' = {
+  name: '${vmName}-ssh-config'
+  params: {
+    machineName: vmName
+    sshPort: 22
+  }
+  dependsOn: [
+    hybridComputeMachine
+    postgresqlPrimarySetupExtension
   ]
 }
 
