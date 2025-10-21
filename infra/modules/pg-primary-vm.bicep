@@ -237,7 +237,7 @@ resource aadSSHLoginExtension 'Microsoft.HybridCompute/machines/extensions@2023-
   ]
 }
 
-// Enable SSH access for Arc-enabled server (immediately after AAD SSH extension)
+// Enable SSH access for Arc-enabled server (as soon as Arc machine is ready)
 module sshConfiguration 'ssh-config.bicep' = {
   name: '${vmName}-ssh-config'
   params: {
@@ -246,7 +246,6 @@ module sshConfiguration 'ssh-config.bicep' = {
   }
   dependsOn: [
     hybridComputeMachine
-    postgresqlPrimarySetupExtension
   ]
 }
 
