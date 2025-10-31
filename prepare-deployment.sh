@@ -388,56 +388,11 @@ fi
 # Return to original directory
 cd - >/dev/null
 
-# Update main.bicepparam file
 done
 echo ""
 
-# Update main.bicepparam file
-echo -e "${YELLOW}📝 Updating parameters file: $PARAMETERS_FILE${NC}"
-
-if [ ! -f "$PARAMETERS_FILE" ]; then
-    echo -e "${RED}❌ Parameters file not found: $PARAMETERS_FILE${NC}"
-    exit 1
-fi
-
-# Read current parameters file
-PARAM_CONTENT=$(cat "$PARAMETERS_FILE")
-PARAMETER_UPDATED=false
-
-# Check if scriptStorageAccount parameter already exists
-if grep -q "param scriptStorageAccount = '" "$PARAMETERS_FILE"; then
-    CURRENT_VALUE=$(grep "param scriptStorageAccount = '" "$PARAMETERS_FILE" | sed -n "s/.*param scriptStorageAccount = '\([^']*\)'.*/\1/p")
-    if [ "$CURRENT_VALUE" != "$STORAGE_ACCOUNT_NAME" ]; then
-        # Update existing parameter
-        sed -i.bak "s/param scriptStorageAccount = '.*'/param scriptStorageAccount = '$STORAGE_ACCOUNT_NAME'/" "$PARAMETERS_FILE"
-        echo -e "${CYAN}  ✏️  Updated scriptStorageAccount parameter: '$CURRENT_VALUE' -> '$STORAGE_ACCOUNT_NAME'${NC}"
-        PARAMETER_UPDATED=true
-    else
-        echo -e "${GREEN}  ✅ scriptStorageAccount parameter already contains correct value: '$STORAGE_ACCOUNT_NAME'${NC}"
-    fi
-else
-    # Add new parameter after the existing Azure Stack HCI configuration
-    if grep -q "param vmImageName" "$PARAMETERS_FILE"; then
-        # Insert before vmImageName line
-        sed -i.bak "/param vmImageName/i param scriptStorageAccount = '$STORAGE_ACCOUNT_NAME'" "$PARAMETERS_FILE"
-        echo -e "${CYAN}  ➕ Added new scriptStorageAccount parameter with value: '$STORAGE_ACCOUNT_NAME'${NC}"
-        PARAMETER_UPDATED=true
-    else
-        # Fallback: append at the end
-        echo "param scriptStorageAccount = '$STORAGE_ACCOUNT_NAME'" >> "$PARAMETERS_FILE"
-        echo -e "${CYAN}  ➕ Added new scriptStorageAccount parameter with value: '$STORAGE_ACCOUNT_NAME' (at end)${NC}"
-        PARAMETER_UPDATED=true
-    fi
-fi
-
-# Remove backup file if created
-rm -f "${PARAMETERS_FILE}.bak"
-
-if [ "$PARAMETER_UPDATED" = true ]; then
-    echo -e "${GREEN}✅ Parameters file updated successfully${NC}"
-else
-    echo -e "${GREEN}✅ Parameters file already up to date${NC}"
-fi
+# No need to update the bicepparam file - we'll pass the storage account as a parameter
+echo -e "${GREEN}📝 Storage account parameter ready: $STORAGE_ACCOUNT_NAME${NC}"
 echo ""
 
 # Summary
@@ -446,16 +401,14 @@ echo ""
 echo -e "${WHITE}📋 Summary:${NC}"
 echo -e "${CYAN}  💾 Storage Account: $STORAGE_ACCOUNT_NAME${NC}"
 echo -e "${CYAN}  📦 Container: $CONTAINER_NAME${NC}"
-echo -e "${GREEN}   Anonymous Access: DISABLED${NC}"
-echo -e "${CYAN}  📄 Assets Uploaded: ${#UPLOADED_ASSETS[@]}${NC}"
+echo -e "${GREEN}  🚫 Anonymous Access: DISABLED${NC}"
 echo -e "${GREEN}  ✅ All assets processed and uploaded successfully!${NC}"
-echo -e "${CYAN}  � Parameters File Updated: $PARAMETERS_FILE${NC}"
 echo ""
-echo -e "${YELLOW}� Next Step: Run your Bicep deployment${NC}"
+echo -e "${YELLOW}🚀 Next Step: Run your Bicep deployment${NC}"
 echo -e "${CYAN}   Basic deployment (password authentication):${NC}"
-echo -e "${GRAY}az deployment group create --resource-group \"$RESOURCE_GROUP_NAME\" --template-file \"infra/main.bicep\" --parameters \"$PARAMETERS_FILE\"${NC}"
+echo -e "${GRAY}az deployment group create --resource-group \"$RESOURCE_GROUP_NAME\" --template-file \"infra/main.bicep\" --parameters \"$PARAMETERS_FILE\" scriptStorageAccount=\"$STORAGE_ACCOUNT_NAME\"${NC}"
 echo ""
 echo -e "${CYAN}   With SSH key (password + SSH authentication):${NC}"
-echo -e "${GRAY}\$sshKey = Get-Content \"\$env:USERPROFILE\\.ssh\\id_rsa.pub\" -Raw${NC}"
-echo -e "${GRAY}az deployment group create --resource-group \"$RESOURCE_GROUP_NAME\" --template-file \"infra/main.bicep\" --parameters \"$PARAMETERS_FILE\" --parameters sshPublicKey=\"\$sshKey\"${NC}"
+echo -e "${GRAY}SSH_KEY=\$(cat ~/.ssh/id_rsa.pub)${NC}"
+echo -e "${GRAY}az deployment group create --resource-group \"$RESOURCE_GROUP_NAME\" --template-file \"infra/main.bicep\" --parameters \"$PARAMETERS_FILE\" scriptStorageAccount=\"$STORAGE_ACCOUNT_NAME\" sshPublicKey=\"\$SSH_KEY\"${NC}"
 echo ""

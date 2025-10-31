@@ -36,9 +36,6 @@ param vmImageId string
 @description('Name of the pre-created storage account containing deployment scripts')
 param scriptStorageAccount string
 
-@description('Timestamp parameter for additional randomization')
-param timestamp string = utcNow()
-
 @description('HTTP proxy server URL (optional - leave empty to disable proxy)')
 @secure()
 param httpProxy string = ''
@@ -55,9 +52,6 @@ param proxyCertificate string = ''
 
 @description('Custom DNS servers for VMs (optional - leave empty to use LNET defaults)')
 param dnsServers array = []
-
-@description('Resource token for unique naming - combines multiple entropy sources for better randomization')
-var resourceToken = substring(uniqueString(resourceGroup().id, deployment().name, timestamp), 0, 6)
 
 @description('Common VM configuration')
 var vmConfig = {
@@ -84,13 +78,13 @@ var vmResources = {
   }
 }
 
-@description('Generate unique VM names')
+@description('Static VM names for repeatable deployments')
 var vmNames = {
-  dbPrimary: '${projectName}-db-primary-${resourceToken}'
-  dbReplica: '${projectName}-db-replica-${resourceToken}'
-  webapp1: '${projectName}-webapp-01-${resourceToken}'
-  webapp2: '${projectName}-webapp-02-${resourceToken}'
-  loadBalancer: '${projectName}-nginx-lb-${resourceToken}'
+  dbPrimary: '${projectName}-db-primary'
+  dbReplica: '${projectName}-db-replica'
+  webapp1: '${projectName}-webapp-01'
+  webapp2: '${projectName}-webapp-02'
+  loadBalancer: '${projectName}-nginx-lb'
 }
 
 @description('Static IP assignments for all VMs')

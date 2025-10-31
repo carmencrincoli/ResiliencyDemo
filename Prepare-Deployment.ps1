@@ -367,54 +367,8 @@ try {
     }
 }
 
-# Update main.bicepparam file
-Write-Host "📝 Updating parameters file: $ParametersFile" -ForegroundColor Yellow
-
-if (-not (Test-Path $ParametersFile)) {
-    Write-Error "❌ Parameters file not found: $ParametersFile"
-    exit 1
-}
-
-# Read current parameters file
-$paramContent = Get-Content $ParametersFile -Raw
-$parameterUpdated = $false
-
-# Check if scriptStorageAccount parameter already exists
-if ($paramContent -match "param scriptStorageAccount = '([^']*)'") {
-    $currentValue = $Matches[1]
-    if ($currentValue -ne $storageAccountName) {
-        # Update existing parameter
-        $paramContent = $paramContent -replace "param scriptStorageAccount = '.*'", "param scriptStorageAccount = '$storageAccountName'"
-        Write-Host "  ✏️  Updated scriptStorageAccount parameter: '$currentValue' -> '$storageAccountName'" -ForegroundColor Cyan
-        $parameterUpdated = $true
-    } else {
-        Write-Host "  ✅ scriptStorageAccount parameter already contains correct value: '$storageAccountName'" -ForegroundColor Green
-    }
-} else {
-    # Add new parameter after the existing Azure Stack HCI configuration
-    $insertPoint = $paramContent.IndexOf("param vmImageName")
-    if ($insertPoint -gt 0) {
-        $beforeInsert = $paramContent.Substring(0, $insertPoint)
-        $afterInsert = $paramContent.Substring($insertPoint)
-        $paramContent = $beforeInsert + "param scriptStorageAccount = '$storageAccountName'`n" + $afterInsert
-        Write-Host "  ➕ Added new scriptStorageAccount parameter with value: '$storageAccountName'" -ForegroundColor Cyan
-        $parameterUpdated = $true
-    } else {
-        # Fallback: append at the end of Azure configuration section
-        $vmImageLine = ($paramContent -split "`n" | Where-Object { $_ -match "param vmImageName" })[0]
-        $paramContent = $paramContent -replace [regex]::Escape($vmImageLine), "$vmImageLine`nparam scriptStorageAccount = '$storageAccountName'"
-        Write-Host "  ➕ Added new scriptStorageAccount parameter with value: '$storageAccountName' (fallback)" -ForegroundColor Cyan
-        $parameterUpdated = $true
-    }
-}
-
-# Write updated content back to file only if changes were made
-if ($parameterUpdated) {
-    $paramContent | Set-Content $ParametersFile -NoNewline
-    Write-Host "✅ Parameters file updated successfully" -ForegroundColor Green
-} else {
-    Write-Host "✅ Parameters file already up to date" -ForegroundColor Green
-}
+# No need to update the bicepparam file - we'll pass the storage account as a parameter
+Write-Host "📝 Storage account parameter ready: $storageAccountName" -ForegroundColor Green
 Write-Host ""
 
 # Summary
@@ -424,15 +378,13 @@ Write-Host "📋 Summary:" -ForegroundColor White
 Write-Host "  💾 Storage Account: $storageAccountName" -ForegroundColor Cyan
 Write-Host "  📦 Container: $ContainerName" -ForegroundColor Cyan
 Write-Host "  🚫 Anonymous Access: DISABLED" -ForegroundColor Green
-Write-Host "  📄 Assets Uploaded: $($uploadedAssets.Count)" -ForegroundColor Cyan
 Write-Host "  ✅ All assets processed and uploaded successfully!" -ForegroundColor Green
-Write-Host "  📝 Parameters File Updated: $ParametersFile" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "🚀 Next Step: Run your Bicep deployment" -ForegroundColor Yellow
 Write-Host "   Basic deployment (password authentication):" -ForegroundColor Cyan
-Write-Host "az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`"" -ForegroundColor Gray
+Write-Host "az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`" scriptStorageAccount=`"$storageAccountName`"" -ForegroundColor Gray
 Write-Host ""
 Write-Host "   With SSH key (password + SSH authentication):" -ForegroundColor Cyan
 Write-Host "`$sshKey = Get-Content `"`$env:USERPROFILE\.ssh\id_rsa.pub`" -Raw" -ForegroundColor Gray
-Write-Host "az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`" --parameters sshPublicKey=`"`$sshKey`"" -ForegroundColor Gray
+Write-Host "az deployment group create --resource-group `"$ResourceGroupName`" --template-file `"infra/main.bicep`" --parameters `"$ParametersFile`" scriptStorageAccount=`"$storageAccountName`" sshPublicKey=`"`$sshKey`"" -ForegroundColor Gray
 Write-Host ""
