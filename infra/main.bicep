@@ -53,6 +53,9 @@ param proxyCertificate string = ''
 @description('Custom DNS servers for VMs (optional - leave empty to use LNET defaults)')
 param dnsServers array = []
 
+@description('Management subnet or IP range that should have SSH access (default: allow from anywhere - restrict in production)')
+param managementSourcePrefix string = '*'
+
 @description('Common VM configuration')
 var vmConfig = {
   size: 'Custom'
@@ -108,6 +111,24 @@ resource existingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' e
 var blobEndpoint = existingStorageAccount.properties.primaryEndpoints.blob
 var storageAccountKey = existingStorageAccount.listKeys().keys[0].value
 
+// Deploy Network Security Group first (required by all VMs)
+// API version 2025-06-01-preview supports NSG association with network interfaces
+module nsg 'modules/nsg.bicep' = {
+  name: 'deploy-nsg'
+  params: {
+    networkSecurityGroupName: '${projectName}-nsg'
+    location: location
+    customLocationId: customLocationId
+    staticIPs: staticIPs
+    managementSourcePrefix: managementSourcePrefix
+    tags: {
+      project: projectName
+      component: 'security'
+      deployment: 'ecommerce-resiliency-demo'
+    }
+  }
+}
+
 // Deploy PostgreSQL Primary VM first (foundation dependency)
 module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
   name: 'deploy-${vmNames.dbPrimary}'
@@ -130,6 +151,7 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
     placementZone: placementZones.dbPrimary
+    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
   }
 }
 
@@ -156,6 +178,7 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
     placementZone: placementZones.dbReplica
+    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
   }
 }
 
@@ -183,6 +206,7 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
     placementZone: placementZones.webapp1
+    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
   }
 }
 
@@ -209,6 +233,7 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
     placementZone: placementZones.webapp2
+    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
   }
 }
 
@@ -235,6 +260,7 @@ module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
     processors: vmResources.loadBalancer.processors
     memoryMB: vmResources.loadBalancer.memoryMB
     placementZone: placementZones.loadBalancer
+    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
   }
 }
 
@@ -271,4 +297,12 @@ output sshConnectionInfo object = {
   webapp1: webapp1Vm.outputs.connectionInfo.sshCommand
   webapp2: webapp2Vm.outputs.connectionInfo.sshCommand
   loadBalancer: loadBalancerVm.outputs.connectionInfo.sshCommand
+}
+
+@description('Network Security Group information')
+output networkSecurityGroup object = {
+  resourceId: nsg.outputs.networkSecurityGroupId
+  name: nsg.outputs.networkSecurityGroupName
+  provisioningState: nsg.outputs.provisioningState
+  securityRulesSummary: nsg.outputs.securityRulesSummary
 }

@@ -55,3 +55,9 @@ param servicePassword = 'ChangeThisServicePassword123!' // Used for database and
 // SSH Authentication (OPTIONAL) - Adds SSH key authentication IN ADDITION to password
 // Uncomment and update the path to your public key file:
 // param sshPublicKey = loadTextContent('./.ssh/id_rsa.pub')
+
+// Network Security Group Configuration (OPTIONAL)
+// Restrict SSH access to specific management subnet/IP
+// Default: '*' allows SSH from anywhere (restrict in production)
+// Examples: '192.168.1.0/24' or '10.0.0.10/32' for specific subnet/IP
+param managementSourcePrefix = '*' // CHANGE THIS in production to your management subnet

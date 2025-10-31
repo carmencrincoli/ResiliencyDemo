@@ -26,6 +26,7 @@ This project deploys a fully functional e-commerce web application on Azure Loca
 
 The solution automatically provisions and configures:
 - **5 Virtual Machines** on Azure Local (2 web apps, 2 databases, 1 load balancer)
+- **Network Security Group** with comprehensive security rules for all components
 - **Next.js 14** full-stack e-commerce application with TypeScript
 - **PostgreSQL 16** database with streaming replication
 - **NGINX** load balancer with health checks and SSL/TLS
@@ -133,6 +134,7 @@ Detailed documentation is organized into focused guides:
 
 - **[Architecture & Application Stack](documentation/ARCHITECTURE.md)** - System architecture, component details, application stack, infrastructure as code, application features, and resiliency features
 - **[Deployment Guide & Configuration](documentation/DEPLOYMENT.md)** - Step-by-step deployment, parameter configuration, environment variables, and customization options
+- **[Network Security](documentation/NETWORK_SECURITY.md)** - Network Security Group configuration, security rules, best practices, and troubleshooting
 - **[SSH Authentication](documentation/SSH_AUTHENTICATION.md)** - Configure SSH key-based authentication for secure VM access (recommended for production)
 - **[Monitoring & Troubleshooting](documentation/MONITORING.md)** - Health checks, log locations, PM2 management, database operations, and detailed troubleshooting guides
 

@@ -65,6 +65,9 @@ param memoryMB int
 @description('Placement zone for the VM (optional - for distributing VMs across availability zones)')
 param placementZone string = ''
 
+@description('Resource ID of the Network Security Group to associate with the network interface')
+param networkSecurityGroupId string = ''
+
 @description('Web application configuration parameters')
 param webappConfig object = {
   port: 3000
@@ -109,7 +112,7 @@ resource hybridComputeMachine 'Microsoft.HybridCompute/machines@2023-10-03-previ
 }
 
 // Network interface for the VM
-resource networkInterface 'Microsoft.AzureStackHCI/networkInterfaces@2024-01-01' = {
+resource networkInterface 'Microsoft.AzureStackHCI/networkInterfaces@2025-06-01-preview' = {
   name: nicName
   location: location
   extendedLocation: {
@@ -130,6 +133,9 @@ resource networkInterface 'Microsoft.AzureStackHCI/networkInterfaces@2024-01-01'
     ]
     dnsSettings: !empty(dnsServers) ? {
       dnsServers: dnsServers
+    } : null
+    networkSecurityGroup: !empty(networkSecurityGroupId) ? {
+      id: networkSecurityGroupId
     } : null
   }
 }
