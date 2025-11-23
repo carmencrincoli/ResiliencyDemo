@@ -12,15 +12,17 @@ param vmImageId = '/subscriptions/00000000-0000-0000-0000-000000000000/resourceG
 // This is just the name of the storage account itself
 param scriptStorageAccount = '' // Leave empty to auto-generate, or specify existing storage account name
 
-// Static IP assignments (update these to match your network range)
+// Static IP assignments for VMs (update these to match your network range)
 // All IPs must be in the same subnet
 param staticIPs = {
-  loadBalancer: '192.168.x.20'
   dbPrimary: '192.168.x.21'
   dbReplica: '192.168.x.22'
   webapp1: '192.168.x.23'
   webapp2: '192.168.x.24'
 }
+
+// Note: Load balancer uses a public IP address (automatically created)
+// No private frontend IP configuration needed
 
 // Availability zone assignments for VM placement
 // Distributes VMs across zones for high availability
@@ -30,7 +32,6 @@ param placementZones = {
   dbReplica: '2'    // Database replica in zone 2
   webapp1: '1'      // Web app 1 in zone 1
   webapp2: '2'      // Web app 2 in zone 2
-  loadBalancer: '3' // Load balancer in zone 3
 }
 
 // DNS configuration (OPTIONAL) - Configure custom DNS servers for VMs

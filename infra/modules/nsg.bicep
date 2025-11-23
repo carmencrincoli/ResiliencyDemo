@@ -37,65 +37,24 @@ resource networkSecurityGroup 'Microsoft.AzureStackHCI/networkSecurityGroups@202
 // ============================================================================
 // PUBLIC INTERNET ACCESS RULES (Priority 100-199)
 // ============================================================================
-
-@description('Allow HTTP traffic to Load Balancer from Internet')
-resource allowHttpToLoadBalancer 'Microsoft.AzureStackHCI/networkSecurityGroups/securityRules@2025-09-01-preview' = {
-  name: 'allow-http-to-lb'
-  parent: networkSecurityGroup
-  extendedLocation: {
-    name: customLocationId
-    type: 'CustomLocation'
-  }
-  properties: {
-    description: 'Allow HTTP (port 80) traffic to Load Balancer from any source'
-    protocol: 'Tcp'
-    sourceAddressPrefixes: ['*']
-    destinationAddressPrefixes: [staticIPs.loadBalancer]
-    sourcePortRanges: ['*']
-    destinationPortRanges: ['80']
-    access: 'Allow'
-    priority: 100
-    direction: 'Inbound'
-  }
-}
-
-@description('Allow HTTPS traffic to Load Balancer from Internet')
-resource allowHttpsToLoadBalancer 'Microsoft.AzureStackHCI/networkSecurityGroups/securityRules@2025-09-01-preview' = {
-  name: 'allow-https-to-lb'
-  parent: networkSecurityGroup
-  extendedLocation: {
-    name: customLocationId
-    type: 'CustomLocation'
-  }
-  properties: {
-    description: 'Allow HTTPS (port 443) traffic to Load Balancer from any source'
-    protocol: 'Tcp'
-    sourceAddressPrefixes: ['*']
-    destinationAddressPrefixes: [staticIPs.loadBalancer]
-    sourcePortRanges: ['*']
-    destinationPortRanges: ['443']
-    access: 'Allow'
-    priority: 110
-    direction: 'Inbound'
-  }
-}
+// Note: Load balancer uses public IP - internet traffic rules managed at platform level
 
 // ============================================================================
-// INTERNAL APPLICATION TRAFFIC RULES (Priority 200-299)
+// INTERNAL SERVICE ACCESS RULES (Priority 200-299)
 // ============================================================================
 
-@description('Allow Load Balancer to Web App servers on port 3000')
-resource allowLbToWebApps 'Microsoft.AzureStackHCI/networkSecurityGroups/securityRules@2025-09-01-preview' = {
-  name: 'allow-lb-to-webapps'
+@description('Allow traffic to Web App servers on port 3000 (for native load balancer and health probes)')
+resource allowToWebApps 'Microsoft.AzureStackHCI/networkSecurityGroups/securityRules@2025-09-01-preview' = {
+  name: 'allow-to-webapps'
   parent: networkSecurityGroup
   extendedLocation: {
     name: customLocationId
     type: 'CustomLocation'
   }
   properties: {
-    description: 'Allow Load Balancer to communicate with Web App servers on port 3000 (Next.js)'
+    description: 'Allow traffic to Web App servers on port 3000 for native load balancer traffic and health probes'
     protocol: 'Tcp'
-    sourceAddressPrefixes: [staticIPs.loadBalancer]
+    sourceAddressPrefixes: ['*']
     destinationAddressPrefixes: [staticIPs.webapp1, staticIPs.webapp2]
     sourcePortRanges: ['*']
     destinationPortRanges: ['3000']
@@ -185,7 +144,6 @@ resource allowSshManagement 'Microsoft.AzureStackHCI/networkSecurityGroups/secur
     protocol: 'Tcp'
     sourceAddressPrefixes: [managementSourcePrefix]
     destinationAddressPrefixes: [
-      staticIPs.loadBalancer
       staticIPs.webapp1
       staticIPs.webapp2
       staticIPs.dbPrimary
@@ -265,9 +223,7 @@ output provisioningState string = networkSecurityGroup.properties.provisioningSt
 @description('Summary of security rules created')
 output securityRulesSummary object = {
   inboundRules: [
-    'HTTP (80) → Load Balancer from Internet'
-    'HTTPS (443) → Load Balancer from Internet'
-    'Load Balancer → Web Apps (3000)'
+    'Traffic → Web Apps (3000) for LB and health probes'
     'Web Apps → PostgreSQL Primary (5432)'
     'Web Apps → PostgreSQL Replica (5432)'
     'PostgreSQL Primary → Replica Replication (5432)'
@@ -279,4 +235,5 @@ output securityRulesSummary object = {
   denyRules: [
     'All other inbound traffic denied'
   ]
+  note: 'Load balancer uses public IP - internet traffic rules managed at platform level'
 }

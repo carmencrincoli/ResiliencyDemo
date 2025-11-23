@@ -203,6 +203,24 @@ apt-get -o DPkg::Lock::Timeout=600 update || handle_error "Failed to update pack
 
 apt-get -o DPkg::Lock::Timeout=600 upgrade -y || handle_error "Failed to upgrade packages"
 
+# Install essential packages that may be missing in minimal Ubuntu images
+log "Installing essential system packages..."
+apt-get -o DPkg::Lock::Timeout=600 install -y \
+    ufw \
+    cron \
+    lsof \
+    logrotate \
+    locales \
+    lsb-release || handle_error "Failed to install essential packages"
+
+# Configure locale
+log "Configuring en_US.UTF-8 locale..."
+locale-gen en_US.UTF-8 || handle_error "Failed to generate en_US.UTF-8 locale"
+update-locale LANG=en_US.UTF-8 || handle_error "Failed to update locale"
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+log "Locale configuration completed"
+
 # Install PostgreSQL
 log "Installing PostgreSQL $POSTGRES_VERSION..."
 apt-get -o DPkg::Lock::Timeout=600 install -y wget ca-certificates gnupg || handle_error "Failed to install prerequisites"

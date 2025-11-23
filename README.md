@@ -16,7 +16,7 @@ A comprehensive, production-ready e-commerce application demonstrating high-avai
 
 This project deploys a fully functional e-commerce web application on Azure Local infrastructure, demonstrating:
 
-- **High Availability**: Multiple web application servers behind an NGINX load balancer
+- **High Availability**: Multiple web application servers behind a native Azure Local load balancer
 - **Database Replication**: PostgreSQL primary-replica configuration for data redundancy
 - **Automated Deployment**: Complete infrastructure provisioning via Bicep templates
 - **Production-Ready**: Comprehensive logging, monitoring, and health checks
@@ -25,11 +25,11 @@ This project deploys a fully functional e-commerce web application on Azure Loca
 ### What Gets Deployed
 
 The solution automatically provisions and configures:
-- **5 Virtual Machines** on Azure Local (2 web apps, 2 databases, 1 load balancer)
+- **4 Virtual Machines** on Azure Local (2 web apps, 2 databases)
+- **Native Azure Local Load Balancer** for high-availability traffic distribution
 - **Network Security Group** with comprehensive security rules for all components
 - **Next.js 14** full-stack e-commerce application with TypeScript
 - **PostgreSQL 16** database with streaming replication
-- **NGINX** load balancer with health checks and SSL/TLS
 - **Complete observability** with structured logging and monitoring
 
 ## 📋 Prerequisites
@@ -47,10 +47,10 @@ The solution automatically provisions and configures:
 - **Bicep CLI** (or Azure CLI with Bicep support)
 
 ### Network Requirements
-- **5 Static IP Addresses** in the same subnet
-- **Virtual Network** with sufficient address space for 5 VMs
+- **5 Static IP Addresses** in the same subnet (4 for VMs, 1 for load balancer frontend)
+- **Virtual Network** with sufficient address space
   - Supports any subnet size (e.g., /24, /25, /26, /27, or larger)
-  - All 5 IPs must be in the same subnet
+  - All IPs must be in the same subnet
 - **Outbound Internet Access** for package downloads
 - **Azure Storage Access** for deployment scripts
 
@@ -79,12 +79,13 @@ param azureLocalResourceGroup = 'your-azure-local-rg'
 param vmImageName = 'ubuntu2404-lts-image-name'
 
 param staticIPs = {
-  loadBalancer: '192.168.x.20'
   dbPrimary: '192.168.x.21'
   dbReplica: '192.168.x.22'
   webapp1: '192.168.x.23'
   webapp2: '192.168.x.24'
 }
+
+param frontendIP = '192.168.x.20'  # Native load balancer frontend IP
 
 param adminPassword = 'YourSecurePassword!'
 param servicePassword = 'YourDatabasePassword!'

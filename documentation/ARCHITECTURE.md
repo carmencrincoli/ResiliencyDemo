@@ -2,12 +2,12 @@
 
 ## 🏗️ Architecture
 
-The application consists of 5 virtual machines deployed on Azure Local:
+The application consists of 4 virtual machines and a native Azure Local load balancer:
 
 ```
                                     ┌─────────────────┐
                                     │  Load Balancer  │
-                                    │     (NGINX)     │
+                                    │  (Azure Local)  │
                                     │  192.168.2.111  │
                                     └────────┬────────┘
                                              │
@@ -34,28 +34,25 @@ The application consists of 5 virtual machines deployed on Azure Local:
 
 ### Component Details
 
-| Component | VM Count | Purpose | Resources |
-|-----------|----------|---------|-----------|
-| **NGINX Load Balancer** | 1 | HTTP/HTTPS traffic distribution | 2 vCPU, 2GB RAM |
-| **Next.js Web Apps** | 2 | Full-stack web application servers | 4 vCPU, 6GB RAM each |
-| **PostgreSQL Primary** | 1 | Primary database (read/write) | 4 vCPU, 8GB RAM |
-| **PostgreSQL Replica** | 1 | Standby database (read-only) | 4 vCPU, 8GB RAM |
-
-### Availability Zone Distribution
+| Component | Count | Purpose | Resources |
+|-----------|-------|---------|-----------|  
+| **Azure Local Load Balancer** | 1 | Native L4 load balancer for HTTP/HTTPS traffic distribution | Managed service |
+| **Next.js Web Apps** | 2 VMs | Full-stack web application servers | 4 vCPU, 6GB RAM each |
+| **PostgreSQL Primary** | 1 VM | Primary database (read/write) | 4 vCPU, 8GB RAM |
+| **PostgreSQL Replica** | 1 VM | Standby database (read-only) | 4 vCPU, 8GB RAM |### Availability Zone Distribution
 
 The deployment leverages Azure Local availability zones to ensure high availability and fault tolerance by distributing VMs across multiple zones. This configuration protects against zone-level failures.
 
 **Default Zone Assignments:**
 
 | VM | Zone | Rationale |
-|----|------|-----------|
+|----|------|-----------|  
 | **PostgreSQL Primary** | Zone 1 | Primary database in zone 1 |
 | **PostgreSQL Replica** | Zone 2 | Replica in separate zone for database HA |
 | **Web App 1** | Zone 1 | First web server in zone 1 |
 | **Web App 2** | Zone 2 | Second web server in separate zone for application HA |
-| **Load Balancer** | Zone 1 | Load balancer can route to web apps in any zone |
 
-**Key Benefits:**
+**Note:** The native Azure Local load balancer is a managed service and doesn't require zone assignment.**Key Benefits:**
 - **Database High Availability**: Primary and replica databases are in different zones, ensuring database availability even if one zone fails
 - **Application Redundancy**: Web application servers are distributed across zones, providing continuous service during zone outages
 - **Automatic Failover**: If a zone becomes unavailable, the application can continue serving traffic from VMs in the remaining zone(s)
@@ -70,7 +67,6 @@ param placementZones = {
   dbReplica: '2'      // Database replica in zone 2
   webapp1: '1'        // Web app 1 in zone 1
   webapp2: '2'        // Web app 2 in zone 2
-  loadBalancer: '1'   // Load balancer in zone 1
 }
 ```
 
@@ -160,23 +156,24 @@ Located in: `/assets/archives/database/`
 - Automated backup and monitoring scripts
 - Log rotation configured
 
-### Load Balancer: NGINX
+### Load Balancer: Native Azure Local Load Balancer
 
-Located in: `/assets/archives/loadbalancer/`
+**Type:** Azure Stack HCI native load balancer (Microsoft.AzureStackHCI/loadBalancers)
 
 **Configuration:**
-- **Algorithm**: Least connections
-- **Health Checks**: Every 5 seconds with 3 max failures
-- **Ports**: HTTP (80), HTTPS (443)
+- **Type**: Layer 4 (TCP) load balancer
+- **Algorithm**: Default (5-tuple hash) distribution
+- **Health Probes**: HTTP health checks every 15 seconds (2 probes)
+- **Ports**: HTTP (80 → 3000), HTTPS (443 → 3000)
 - **Backend Pool**: 2 web application servers
 
 **Features:**
-- SSL/TLS termination (TLS 1.2/1.3)
-- Gzip compression for web assets
-- Rate limiting (10 req/s per IP for API)
-- Custom logging with request/response times
-- Automatic failover to healthy backends
-- Health check endpoint: `/api/health`
+- Native integration with Azure Local infrastructure
+- Automatic health monitoring with HTTP probes
+- Configurable load distribution modes (Default, SourceIP, SourceIPProtocol)
+- Direct backend pool integration with VM network interfaces
+- Health check endpoint: `/api/health` on port 3000
+- No VM overhead - fully managed service
 
 ## 🔧 Infrastructure as Code
 
@@ -191,7 +188,8 @@ infra/
     ├── pg-primary-vm.bicep        # PostgreSQL primary VM
     ├── pg-replica-vm.bicep        # PostgreSQL replica VM
     ├── webapp-vm.bicep            # Next.js web app VM
-    ├── loadbalancer-vm.bicep      # NGINX load balancer VM
+    ├── loadbalancer.bicep         # Native Azure Local load balancer
+    ├── nsg.bicep                  # Network Security Group
     └── ssh-config.bicep           # SSH key configuration
 ```
 
@@ -208,10 +206,11 @@ infra/
 **2. Intelligent Dependency Management**
 ```bicep
 Deployment Order:
-1. PostgreSQL Primary (foundation)
-2. PostgreSQL Replica (depends on primary)
-3. Web Apps 1 & 2 (parallel, depend on primary)
-4. Load Balancer (parallel, depends on primary)
+1. Network Security Group (NSG)
+2. PostgreSQL Primary (foundation)
+3. PostgreSQL Replica (no direct dependency on primary)
+4. Web Apps 1 & 2 (parallel, no direct dependencies)
+5. Native Load Balancer (depends on Web Apps for backend pool)
 ```
 
 **3. Parameterized Configuration**
@@ -219,6 +218,7 @@ Deployment Order:
 - Support for multiple Azure Local environments
 - Customizable resource allocation
 - Secure password management
+- Separate frontend IP for native load balancer
 
 **4. Script-Based Setup**
 Each VM receives:

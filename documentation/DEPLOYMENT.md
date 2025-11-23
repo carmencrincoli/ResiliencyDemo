@@ -19,11 +19,9 @@ assets/
 │   ├── bash-installer.sh
 │   ├── pg-primary-setup.sh
 │   ├── pg-replica-setup.sh
-│   ├── webapp-setup.sh
-│   └── loadbalancer-setup.sh
+│   └── webapp-setup.sh
 ├── database.tar.gz        # PostgreSQL configs
-├── webapp.tar.gz          # Next.js application
-└── loadbalancer.tar.gz    # NGINX configs
+└── webapp.tar.gz          # Next.js application
 ```
 
 **Run the preparation script:**
@@ -40,33 +38,37 @@ assets/
 4. Uploads all scripts and archives to blob storage
 5. Updates parameter file with storage account name
 
-#### Phase 2: Deploy VMs
-The Bicep deployment creates VMs in order:
+#### Phase 2: Deploy Infrastructure
+The Bicep deployment creates resources in order:
 
-**1. PostgreSQL Primary** (5-7 minutes)
+**1. Network Security Group** (1-2 minutes)
+- NSG creation with security rules
+- Frontend IP and VM access rules
+
+**2. PostgreSQL Primary** (5-7 minutes)
 - VM creation and network configuration
 - PostgreSQL 16 installation
 - Database initialization
 - Replication user setup
 
-**2. PostgreSQL Replica** (5-7 minutes)
+**3. PostgreSQL Replica** (5-7 minutes)
 - VM creation and network configuration
 - PostgreSQL 16 installation
 - Base backup from primary
 - Streaming replication setup
 
-**3. Web Applications** (6-8 minutes each, parallel)
+**4. Web Applications** (6-8 minutes each, parallel)
 - VM creation and network configuration
 - Node.js 18 installation
 - Application deployment
 - PM2 process manager setup
 - Database connection configuration
 
-**4. Load Balancer** (3-5 minutes)
-- VM creation and network configuration
-- NGINX installation
-- Backend pool configuration
-- SSL certificate generation (self-signed)
+**5. Native Load Balancer** (2-3 minutes)
+- Load balancer resource creation
+- Frontend IP configuration
+- Backend pool with web app NICs
+- Health probes and load balancing rules
 
 **Deploy with Azure CLI:**
 ```powershell
@@ -80,7 +82,7 @@ az deployment group create `
     --parameters ./main.bicepparam
 ```
 
-**Total deployment time:** Approximately 15-20 minutes
+**Total deployment time:** Approximately 15-18 minutes
 
 #### Phase 3: Verification
 

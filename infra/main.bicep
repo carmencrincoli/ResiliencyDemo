@@ -75,10 +75,6 @@ var vmResources = {
     processors: 4
     memoryMB: 6144    // 6GB - Next.js full-stack web application
   }
-  loadBalancer: {
-    processors: 2
-    memoryMB: 2048    // 2GB - NGINX reverse proxy
-  }
 }
 
 @description('Static VM names for repeatable deployments')
@@ -87,8 +83,13 @@ var vmNames = {
   dbReplica: '${projectName}-db-replica'
   webapp1: '${projectName}-webapp-01'
   webapp2: '${projectName}-webapp-02'
-  loadBalancer: '${projectName}-nginx-lb'
 }
+
+@description('Load balancer name')
+var loadBalancerName = '${projectName}-lb'
+
+@description('Public IP name for load balancer')
+var publicIPName = '${projectName}-lb-publicip'
 
 @description('Static IP assignments for all VMs')
 param staticIPs object
@@ -99,7 +100,6 @@ param placementZones object = {
   dbReplica: '2'      // PostgreSQL Replica in zone 2 (separate from primary)
   webapp1: '1'        // Web App 01 in zone 1
   webapp2: '2'        // Web App 02 in zone 2 (separate from webapp1)
-  loadBalancer: '1'   // Load Balancer in zone 1
 }
 
 // Reference to existing storage account created in Step 1
@@ -111,8 +111,26 @@ resource existingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' e
 var blobEndpoint = existingStorageAccount.properties.primaryEndpoints.blob
 var storageAccountKey = existingStorageAccount.listKeys().keys[0].value
 
+// Deploy Public IP for Load Balancer
+module publicIP 'modules/publicip.bicep' = {
+  name: 'deploy-${publicIPName}'
+  params: {
+    publicIPAddressName: publicIPName
+    location: location
+    customLocationId: customLocationId
+    logicalNetworkId: logicalNetworkId
+    tags: {
+      project: projectName
+      component: 'load-balancer'
+      deployment: 'ecommerce-resiliency-demo'
+    }
+  }
+}
+
 // Deploy Network Security Group first (required by all VMs)
 // API version 2025-06-01-preview supports NSG association with network interfaces
+// TEMPORARILY DISABLED FOR TROUBLESHOOTING
+/*
 module nsg 'modules/nsg.bicep' = {
   name: 'deploy-nsg'
   params: {
@@ -128,6 +146,7 @@ module nsg 'modules/nsg.bicep' = {
     }
   }
 }
+*/
 
 // Deploy PostgreSQL Primary VM first (foundation dependency)
 module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
@@ -151,7 +170,7 @@ module dbPrimaryVm 'modules/pg-primary-vm.bicep' = {
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
     placementZone: placementZones.dbPrimary
-    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
+    // networkSecurityGroupId: nsg.outputs.networkSecurityGroupId  // TEMPORARILY DISABLED
   }
 }
 
@@ -178,7 +197,7 @@ module dbReplicaVm 'modules/pg-replica-vm.bicep' = {
     processors: vmResources.database.processors
     memoryMB: vmResources.database.memoryMB
     placementZone: placementZones.dbReplica
-    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
+    // networkSecurityGroupId: nsg.outputs.networkSecurityGroupId  // TEMPORARILY DISABLED
   }
 }
 
@@ -206,7 +225,7 @@ module webapp1Vm 'modules/webapp-vm.bicep' = {
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
     placementZone: placementZones.webapp1
-    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
+    // networkSecurityGroupId: nsg.outputs.networkSecurityGroupId  // TEMPORARILY DISABLED
   }
 }
 
@@ -233,53 +252,68 @@ module webapp2Vm 'modules/webapp-vm.bicep' = {
     processors: vmResources.webapp.processors
     memoryMB: vmResources.webapp.memoryMB
     placementZone: placementZones.webapp2
-    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
+    // networkSecurityGroupId: nsg.outputs.networkSecurityGroupId  // TEMPORARILY DISABLED
   }
 }
 
-// Deploy Load Balancer VM (no dependency - can handle backend connectivity gracefully)
-module loadBalancerVm 'modules/loadbalancer-vm.bicep' = {
-  name: 'deploy-${vmNames.loadBalancer}'
+// Deploy Native Azure Local Load Balancer (depends on webapp VMs for backend pool)
+module loadBalancer 'modules/loadbalancer.bicep' = {
+  name: 'deploy-${loadBalancerName}'
   params: {
-    vmName: vmNames.loadBalancer
+    loadBalancerName: loadBalancerName
     location: location
-    vmConfig: vmConfig
-    httpProxy: httpProxy
-    httpsProxy: httpsProxy
-    noProxy: noProxy
-    proxyCertificate: proxyCertificate
-    staticIP: staticIPs.loadBalancer
-    webapp1IP: staticIPs.webapp1
-    webapp2IP: staticIPs.webapp2
-    storageAccountUrl: blobEndpoint
-    storageAccountName: scriptStorageAccount
-    storageAccountKey: storageAccountKey
-    adminPassword: adminPassword
-    sshPublicKey: sshPublicKey
-    dnsServers: dnsServers
-    processors: vmResources.loadBalancer.processors
-    memoryMB: vmResources.loadBalancer.memoryMB
-    placementZone: placementZones.loadBalancer
-    networkSecurityGroupId: nsg.outputs.networkSecurityGroupId
+    customLocationId: customLocationId
+    logicalNetworkId: logicalNetworkId
+    publicIPAddressId: publicIP.outputs.publicIPAddressId
+    backendNicIPConfigs: [
+      '${webapp1Vm.outputs.nicResourceId}/ipConfigurations/ipconfig1'
+      '${webapp2Vm.outputs.nicResourceId}/ipConfigurations/ipconfig1'
+    ]
+    httpPort: 80
+    httpsPort: 443
+    backendHttpPort: 3000
+    backendHttpsPort: 3000
+    healthProbeProtocol: 'Http'
+    healthProbePort: 3000
+    healthProbeRequestPath: '/api/health'
+    healthProbeIntervalInSeconds: 15
+    healthProbeNumberOfProbes: 2
+    loadDistribution: 'Default'
+    idleTimeoutInMinutes: 4
+    tags: {
+      project: projectName
+      component: 'load-balancer'
+      deployment: 'ecommerce-resiliency-demo'
+    }
   }
 }
 
-// Outputs for verification and connection information
+// ============================================================================
+// OUTPUTS
+// ============================================================================
+
 @description('Connection information for the deployed e-commerce application')
 output applicationEndpoints object = {
-  loadBalancerIP: staticIPs.loadBalancer
-  loadBalancerHttps: 'https://${staticIPs.loadBalancer}'
-  loadBalancerHttp: 'http://${staticIPs.loadBalancer}'
+  loadBalancerPublicIPId: publicIP.outputs.publicIPAddressId
+  loadBalancerPublicIPName: publicIP.outputs.publicIPAddressName
+  note: 'Get the public IP address using: az resource show --ids <publicIPId> --query properties.ipAddress -o tsv'
   databasePrimaryIP: staticIPs.dbPrimary
 }
 
-@description('VM deployment status and resource IDs')
+@description('VM resource IDs for all deployed virtual machines')
 output vmResourceIds object = {
   databasePrimary: dbPrimaryVm.outputs.vmResourceId
   databaseReplica: dbReplicaVm.outputs.vmResourceId
   webapp1: webapp1Vm.outputs.vmResourceId
   webapp2: webapp2Vm.outputs.vmResourceId
-  loadBalancer: loadBalancerVm.outputs.vmResourceId
+}
+
+@description('Load balancer resource information')
+output loadBalancerInfo object = {
+  resourceId: loadBalancer.outputs.loadBalancerId
+  name: loadBalancer.outputs.loadBalancerName
+  provisioningState: loadBalancer.outputs.provisioningState
+  publicIPAddressId: publicIP.outputs.publicIPAddressId
 }
 
 @description('Database connection information for applications')
@@ -296,9 +330,10 @@ output sshConnectionInfo object = {
   databaseReplica: dbReplicaVm.outputs.connectionInfo.sshCommand
   webapp1: webapp1Vm.outputs.connectionInfo.sshCommand
   webapp2: webapp2Vm.outputs.connectionInfo.sshCommand
-  loadBalancer: loadBalancerVm.outputs.connectionInfo.sshCommand
 }
 
+// TEMPORARILY DISABLED FOR TROUBLESHOOTING
+/*
 @description('Network Security Group information')
 output networkSecurityGroup object = {
   resourceId: nsg.outputs.networkSecurityGroupId
@@ -306,3 +341,4 @@ output networkSecurityGroup object = {
   provisioningState: nsg.outputs.provisioningState
   securityRulesSummary: nsg.outputs.securityRulesSummary
 }
+*/
